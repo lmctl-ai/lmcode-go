@@ -34,6 +34,7 @@ type Stub struct {
 	Xs       *IntList
 	Reg      *lmcode.Registry
 	Output   bytes.Buffer
+	TempDir  string
 }
 
 // NewStub creates a new Stub with the standard conformance methods and functions registered.
@@ -50,6 +51,13 @@ func NewStub(stdMode ...bool) *Stub {
 			return lmcode.NewRegistryWithoutStd()
 		}(),
 	}
+	if useStd {
+		dir, err := os.MkdirTemp("", "lmcode-conformance-")
+		if err != nil {
+			panic(err)
+		}
+		s.TempDir = dir
+	}
 	s.initRegistry(useStd)
 	return s
 }
@@ -57,15 +65,28 @@ func NewStub(stdMode ...bool) *Stub {
 func (s *Stub) initRegistry(useStd bool) {
 	// The catalog and fixture adapters are ordinary host callbacks, shared by both vector suites.
 	if useStd {
+		if len(s.Reg.StdSignatures()) != 72 {
+			panic(fmt.Sprintf("default std signature count = %d, want 72", len(s.Reg.StdSignatures())))
+		}
+		if err := stdlib.RegisterTesting(s.Reg, &s.Output); err != nil {
+			panic(err)
+		}
 		if err := s.Reg.SetStdOutput(&s.Output); err != nil {
 			panic(err)
 		}
-		_ = s.Reg.Function("printed", nil, "string", func([]lmcode.Value) (lmcode.Value, error) {
-			return lmcode.String(s.Output.String()), nil
+		_ = s.Reg.Function("printed", nil, "string", func([]lmcode.Value) (lmcode.Value, error) { return lmcode.String(s.Output.String()), nil })
+		_ = s.Reg.Function("test_temp_dir", nil, "string", func([]lmcode.Value) (lmcode.Value, error) { return lmcode.String(s.TempDir), nil })
+		_ = s.Reg.Function("test_long_path", nil, "string", func([]lmcode.Value) (lmcode.Value, error) {
+			parts := []string{s.TempDir}
+			for i := 0; i < 12; i++ {
+				parts = append(parts, "segment-0123456789abcdef")
+			}
+			dir := filepath.Join(parts...)
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return lmcode.None(), lmcode.NewHostError(err.Error())
+			}
+			return lmcode.String(filepath.Join(dir, "résumé-文件-😀.bin")), nil
 		})
-		if len(s.Reg.StdSignatures()) != 69 {
-			panic(fmt.Sprintf("default std signature count = %d, want 69", len(s.Reg.StdSignatures())))
-		}
 	} else {
 		if err := stdlib.RegisterString(s.Reg); err != nil {
 			panic(err)
@@ -221,6 +242,13 @@ func (s *Stub) initRegistry(useStd bool) {
 	})
 }
 
+func (s *Stub) Cleanup() {
+	if s.TempDir != "" {
+		_ = os.RemoveAll(s.TempDir)
+		s.TempDir = ""
+	}
+}
+
 // fixtureBytes accepts only lowercase hex pairs, matching the language-neutral fixture host.
 func fixtureBytes(encoded string) (string, error) {
 	for i := 0; i < len(encoded); i++ {
@@ -344,8 +372,9 @@ func CheckVector(dir, name string) (string, error) {
 		return "", err
 	}
 
-	stdMode := bytes.Contains(schema, []byte(`"str_len"`)) || bytes.Contains(schema, []byte(`"math_abs"`)) || bytes.Contains(schema, []byte(`"str_list"`)) || bytes.Contains(schema, []byte(`"print"`))
+	stdMode := bytes.Contains(schema, []byte(`"str_len"`)) || bytes.Contains(schema, []byte(`"math_abs"`)) || bytes.Contains(schema, []byte(`"str_list"`)) || bytes.Contains(schema, []byte(`"file_read"`)) || bytes.Contains(schema, []byte(`"print"`))
 	stub := NewStub(stdMode)
+	defer stub.Cleanup()
 	var runErr error
 	var loadErr error
 	loaded := false
@@ -384,6 +413,21 @@ func CheckVector(dir, name string) (string, error) {
 	case "runtime_error":
 		if loaded && !ran && runErr != nil && len(expect.Lines) > 0 {
 			ok = strings.Contains(runErr.Error(), expect.Lines[0])
+		}
+	case "runtime_error_file":
+		if loaded && !ran && runErr != nil && len(expect.Lines) >= 3 {
+			if lmErr, isLm := runErr.(*lmcode.Error); isLm && lmErr.Code == expect.Lines[0] {
+				message := lmErr.Message
+				if lmErr.HasColumn {
+					message = strings.TrimPrefix(message, fmt.Sprintf("dsl line %d:%d: ", lmErr.Line, lmErr.Column))
+				} else if lmErr.HasLocation {
+					message = strings.TrimPrefix(message, fmt.Sprintf("dsl line %d: ", lmErr.Line))
+				}
+				ok = strings.Contains(message, expect.Lines[1]+": ") && strings.Contains(message, expect.Lines[2])
+				if ok {
+					ok = strings.TrimSpace(message[strings.LastIndexByte(message, ':')+1:]) != ""
+				}
+			}
 		}
 	case "runtime_error_at":
 		if loaded && !ran && runErr != nil && len(expect.Lines) >= 4 {

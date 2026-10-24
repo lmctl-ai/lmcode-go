@@ -1,0 +1,1 @@
+{"functions":{"file_append":[{"params":["string","string"],"returns":"void"}],"file_exists":[{"params":["string"],"returns":"bool"}],"file_lines":[{"params":["string"],"returns":"StrList"}],"file_read":[{"params":["string"],"returns":"string"}],"file_write":[{"params":["string","string"],"returns":"void"}]}}
