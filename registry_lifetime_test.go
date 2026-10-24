@@ -74,3 +74,15 @@ func TestExplicitCollectionsSurviveRegisterStd(t *testing.T) {
 		t.Fatalf("explicit arena size after RegisterStd = %d", arena.Size())
 	}
 }
+
+func TestBareRegistryKeepsLegacyRunReuse(t *testing.T) {
+	r := NewRegistryWithoutStd()
+	if err := r.beginRun(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.beginRun(); err != nil {
+		t.Fatalf("bare nested run: %v", err)
+	}
+	r.endRun()
+	r.endRun()
+}

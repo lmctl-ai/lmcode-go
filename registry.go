@@ -227,6 +227,9 @@ func RegisterStd(r *Registry) error {
 }
 
 func (r *Registry) beginRun() error {
+	if !r.stdInstalled {
+		return nil
+	}
 	if r.runState == nil {
 		r.runState = &registryRunState{}
 	}
@@ -240,6 +243,9 @@ func (r *Registry) beginRun() error {
 }
 
 func (r *Registry) endRun() {
+	if !r.stdInstalled {
+		return
+	}
 	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
