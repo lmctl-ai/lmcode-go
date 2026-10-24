@@ -19,6 +19,7 @@ func canonicalSignatures(t *testing.T) []string {
 		t.Fatal(err)
 	}
 	var schema struct {
+		Std       int `json:"lmcode.std"`
 		Functions map[string][]struct {
 			Params  []string `json:"params"`
 			Returns string   `json:"returns"`
@@ -32,6 +33,9 @@ func canonicalSignatures(t *testing.T) []string {
 	}
 	if err := json.Unmarshal(data, &schema); err != nil {
 		t.Fatal(err)
+	}
+	if schema.Std != 1 {
+		t.Fatalf("canonical std version = %d, want 1", schema.Std)
 	}
 	var out []string
 	for n, defs := range schema.Functions {
@@ -54,6 +58,12 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 	defaultReg := lmcode.NewRegistry()
 	if got, want := defaultReg.Signatures(), canonicalSignatures(t); !reflect.DeepEqual(got, want) {
 		t.Fatalf("default std signatures = %v, want canonical %v", got, want)
+	}
+	if got := defaultReg.StdSignatures(); !reflect.DeepEqual(got, defaultReg.Signatures()) {
+		t.Fatalf("std signatures mismatch: %v", got)
+	}
+	if !defaultReg.MatchesSchemaSignatures(defaultReg.Signatures()) {
+		t.Fatal("canonical schema signatures should match")
 	}
 	if defaultReg.FunctionBySignature("fn str_len(string) -> int") == nil {
 		t.Fatal("default registry did not install std")

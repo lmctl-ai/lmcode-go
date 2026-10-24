@@ -246,6 +246,16 @@ func (r *Registry) HostSignatures() []string {
 	return out
 }
 
+// StdSignatures returns the installed canonical standard declarations.
+func (r *Registry) StdSignatures() []string {
+	out := make([]string, 0, len(r.stdSignatures))
+	for s := range r.stdSignatures {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // CheckSchemaSignatures checks the host declarations plus enabled built-ins against a schema signature set.
 func (r *Registry) CheckSchemaSignatures(schema []string) error {
 	want := map[string]bool{}
@@ -276,6 +286,11 @@ func (r *Registry) CheckSchemaSignatures(schema []string) error {
 	sort.Strings(missing)
 	sort.Strings(extra)
 	return NewError(LOAD_UNBOUND, fmt.Sprintf("schema signatures differ: missing %s; extra %s", strings.Join(missing, ", "), strings.Join(extra, ", ")))
+}
+
+// MatchesSchemaSignatures reports whether schema declarations plus installed std match the registry.
+func (r *Registry) MatchesSchemaSignatures(schema []string) bool {
+	return r.CheckSchemaSignatures(schema) == nil
 }
 
 // Signatures returns sorted canonical strings matching `lmscript --dsl-signatures SCHEMA`.
