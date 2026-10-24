@@ -80,9 +80,11 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 The optional math catalog in `stdlib/math.schema-fragment.json` provides `math_abs`, `math_min`, `math_max`, `math_floor`, `math_ceil`, `math_round`, `math_pow`, and `math_sqrt`, each with `int` and `float` overloads. Integer arithmetic wraps at int64; negative integer exponents and square roots return `RUN_HOST`. Float operations preserve IEEE NaN, infinity, and signed-zero rules, with ties-away rounding.
 
+The collections and testing catalogs are declared in `stdlib/collections.schema-fragment.json` and `stdlib/testing.schema-fragment.json`. `RegisterCollections` creates a fresh 65536-object arena by default; hosts that reuse a registry across runs may pass a `*stdlib.Collections` and call `Reset` after old handles expire. `RegisterTesting` accepts an output writer, with nil selecting stdout.
+
 ## Build and test
 
-Run the entire test suite (unit tests, 51 core vectors and 29 optional catalog vectors):
+Run the entire test suite (unit tests, 51 core vectors and 61 optional catalog vectors):
 
 ```sh
 go test ./...

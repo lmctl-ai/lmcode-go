@@ -2,7 +2,7 @@
 
 ## Test command
 
-Run all tests (unit tests, 51 core vectors and 29 catalog vectors):
+Run all tests (unit tests, 51 core vectors and 61 catalog vectors):
 
 ```sh
 go test -v ./...

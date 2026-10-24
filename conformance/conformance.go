@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -32,27 +33,37 @@ type Stub struct {
 	Variable *Thing
 	Xs       *IntList
 	Reg      *lmcode.Registry
+	Output   bytes.Buffer
 }
 
 // NewStub creates a new Stub with the standard conformance methods and functions registered.
-func NewStub() *Stub {
+func NewStub(catalog ...bool) *Stub {
+	useCatalog := len(catalog) > 0 && catalog[0]
 	s := &Stub{
 		Root:     &Thing{ID: 0},
 		Variable: &Thing{ID: 0},
 		Xs:       &IntList{Values: []int64{0, 1, 2, 3}},
 		Reg:      lmcode.NewRegistry(),
 	}
-	s.initRegistry()
+	s.initRegistry(useCatalog)
 	return s
 }
 
-func (s *Stub) initRegistry() {
+func (s *Stub) initRegistry(useCatalog bool) {
 	// The catalog and fixture adapters are ordinary host callbacks, shared by both vector suites.
 	if err := stdlib.RegisterString(s.Reg); err != nil {
 		panic(err)
 	}
 	if err := stdlib.RegisterMath(s.Reg); err != nil {
 		panic(err)
+	}
+	if useCatalog {
+		if err := stdlib.RegisterCollections(s.Reg); err != nil {
+			panic(err)
+		}
+		if err := stdlib.RegisterTesting(s.Reg, &s.Output); err != nil {
+			panic(err)
+		}
 	}
 	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
 		raw, err := fixtureBytes(args[0].Str)
@@ -68,19 +79,23 @@ func (s *Stub) initRegistry() {
 	_ = s.Reg.Context("t", "Trace")
 	_ = s.Reg.Context("root", "Thing")
 	_ = s.Reg.Context("v", "Var")
-	_ = s.Reg.Context("xs", "IntList")
+	if !useCatalog {
+		_ = s.Reg.Context("xs", "IntList")
+	}
 
-	_ = s.Reg.Method("IntList", "len", nil, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
-		return lmcode.Int(int64(len(self.(*IntList).Values))), nil
-	})
-	_ = s.Reg.Method("IntList", "at", []string{"int"}, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
-		idx := args[0].Int
-		list := self.(*IntList).Values
-		if idx < 0 || int(idx) >= len(list) {
-			return lmcode.None(), lmcode.NewHostError("IntList index out of range")
-		}
-		return lmcode.Int(list[idx]), nil
-	})
+	if !useCatalog {
+		_ = s.Reg.Method("IntList", "len", nil, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
+			return lmcode.Int(int64(len(self.(*IntList).Values))), nil
+		})
+		_ = s.Reg.Method("IntList", "at", []string{"int"}, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
+			idx := args[0].Int
+			list := self.(*IntList).Values
+			if idx < 0 || int(idx) >= len(list) {
+				return lmcode.None(), lmcode.NewHostError("IntList index out of range")
+			}
+			return lmcode.Int(list[idx]), nil
+		})
+	}
 
 	_ = s.Reg.Method("Trace", "int", []string{"int"}, "void", func(self any, args []lmcode.Value) (lmcode.Value, error) {
 		s.Trace = append(s.Trace, fmt.Sprintf("int %d", args[0].Int))
@@ -320,7 +335,8 @@ func CheckVector(dir, name string) (string, error) {
 		return "", err
 	}
 
-	stub := NewStub()
+	useCatalog := bytes.Contains(schema, []byte(`"str_list"`))
+	stub := NewStub(useCatalog)
 	var runErr error
 	var loadErr error
 	loaded := false
@@ -335,7 +351,9 @@ func CheckVector(dir, name string) (string, error) {
 		ctx.Set("t", stub)
 		ctx.Set("root", stub.Root)
 		ctx.Set("v", stub.Variable)
-		ctx.Set("xs", stub.Xs)
+		if !useCatalog {
+			ctx.Set("xs", stub.Xs)
+		}
 		runErr = p.Run(ctx, stub.Reg)
 		if runErr == nil {
 			ran = true
@@ -389,6 +407,18 @@ func CheckVector(dir, name string) (string, error) {
 			msgMatch := strings.Contains(msg, expect.Lines[3])
 
 			ok = codeMatch && lineMatch && colMatch && msgMatch
+		}
+	case "runtime_error_exact":
+		if loaded && !ran && runErr != nil && len(expect.Lines) >= 2 {
+			if lmErr, isLm := runErr.(*lmcode.Error); isLm {
+				msg := lmErr.Message
+				if lmErr.HasColumn {
+					msg = strings.TrimPrefix(msg, fmt.Sprintf("dsl line %d:%d: ", lmErr.Line, lmErr.Column))
+				} else if lmErr.HasLocation {
+					msg = strings.TrimPrefix(msg, fmt.Sprintf("dsl line %d: ", lmErr.Line))
+				}
+				ok = lmErr.Code == expect.Lines[0] && msg == expect.Lines[1]
+			}
 		}
 	case "load_error":
 		if !loaded && loadErr != nil && len(expect.Lines) > 0 {

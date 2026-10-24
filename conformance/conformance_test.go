@@ -108,6 +108,24 @@ func TestAllVectors(t *testing.T) {
 	}
 }
 
+func TestAllCatalogVectors(t *testing.T) {
+	dir := "../conformance/stdlib-vectors"
+	names, err := conformance.VectorNames(dir)
+	if err != nil {
+		t.Fatalf("VectorNames(%s): %v", dir, err)
+	}
+	if len(names) < 61 {
+		t.Fatalf("expected at least 61 catalog vectors, got %d", len(names))
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			if _, err := conformance.CheckVector(dir, name); err != nil {
+				t.Errorf("%v", err)
+			}
+		})
+	}
+}
+
 func TestStdlibVectors(t *testing.T) {
 	names, err := conformance.VectorNames("stdlib-vectors")
 	if err != nil {
