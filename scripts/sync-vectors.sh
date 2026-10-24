@@ -9,7 +9,7 @@ FIND="find"
 command -v /usr/bin/find >/dev/null 2>&1 && FIND="/usr/bin/find"
 SORT="sort"
 command -v /usr/bin/sort >/dev/null 2>&1 && SORT="/usr/bin/sort"
-digest() { (cd "$1" && $FIND . -type f | LC_ALL=C $SORT | xargs sha256sum | sha256sum | cut -c1-64); }
+digest() { (cd "$1" && $FIND . -type f | LC_ALL=C $SORT | xargs sha256sum | sed -e 's/ \*/  /' | tr -d '\r' | sha256sum | cut -c1-64); }
 if [ "${1:-}" = "--verify" ]; then
   [ -f "$LOCK" ] || { echo "vectors.lock missing" >&2; exit 1; }
   want="$(sed -n 's/^sha256=//p' "$LOCK")"; have="$(digest "$DST")"

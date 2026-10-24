@@ -1,3 +1,6 @@
-# Precompiled vectors bind to the exact schema bytes, including line endings.
-conformance/vectors/*.json text eol=lf
+* text=auto eol=lf
 *.dslb binary
+conformance/vectors/*.dsl text eol=lf
+conformance/vectors/*.expect text eol=lf
+conformance/vectors/*.json text eol=lf
+conformance/vectors/*.dslb binary
