@@ -56,7 +56,9 @@ jobs:
         run: go test -v ./...
 
       - name: standalone conformance runner
-        run: go run ./cmd/conformance ./conformance/vectors
+        run: |
+          go run ./cmd/conformance ./conformance/vectors
+          go run ./cmd/conformance ./conformance/stdlib-vectors
 
       - name: example greeter host
         run: bash examples/greeter/test.sh

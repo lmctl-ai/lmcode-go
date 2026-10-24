@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/lmctl-ai/lmcode-go"
+	"github.com/lmctl-ai/lmcode-go/stdlib"
 )
 
 // Thing is a host object used in conformance tests.
@@ -45,6 +47,21 @@ func NewStub() *Stub {
 }
 
 func (s *Stub) initRegistry() {
+	// The catalog and fixture adapters are ordinary host callbacks, shared by both vector suites.
+	if err := stdlib.RegisterString(s.Reg); err != nil {
+		panic(err)
+	}
+	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
+		raw, err := fixtureBytes(args[0].Str)
+		if err != nil {
+			return lmcode.None(), err
+		}
+		return lmcode.String(raw), nil
+	})
+	_ = s.Reg.Method("Trace", "hex", []string{"string"}, "void", func(self any, args []lmcode.Value) (lmcode.Value, error) {
+		s.Trace = append(s.Trace, "hex "+hex.EncodeToString([]byte(args[0].Str)))
+		return lmcode.None(), nil
+	})
 	_ = s.Reg.Context("t", "Trace")
 	_ = s.Reg.Context("root", "Thing")
 	_ = s.Reg.Context("v", "Var")
@@ -175,6 +192,21 @@ func (s *Stub) initRegistry() {
 	_ = s.Reg.Function("bad_int", nil, "int", func(args []lmcode.Value) (lmcode.Value, error) {
 		return lmcode.String("x"), nil
 	})
+}
+
+// fixtureBytes accepts only lowercase hex pairs, matching the language-neutral fixture host.
+func fixtureBytes(encoded string) (string, error) {
+	for i := 0; i < len(encoded); i++ {
+		c := encoded[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return "", lmcode.NewHostError("bytes: expected lowercase hexadecimal pairs")
+		}
+	}
+	raw, err := hex.DecodeString(encoded)
+	if err != nil {
+		return "", lmcode.NewHostError("bytes: expected lowercase hexadecimal pairs")
+	}
+	return string(raw), nil
 }
 
 // TraceLineMatches checks whether an actual trace line matches the expected line,

@@ -80,7 +80,7 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Build and test
 
-Run the entire test suite (unit tests and all 51 conformance vectors):
+Run the entire test suite (unit tests, 51 core vectors and 18 optional string catalog vectors):
 
 ```sh
 go test ./...
@@ -90,6 +90,7 @@ Run the standalone conformance runner:
 
 ```sh
 go run ./cmd/conformance ./conformance/vectors
+go run ./cmd/conformance ./conformance/stdlib-vectors
 ```
 
 Build the static example host:
