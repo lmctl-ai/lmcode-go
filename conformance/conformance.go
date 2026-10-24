@@ -64,6 +64,9 @@ func (s *Stub) initRegistry(useCatalog bool) {
 		if err := stdlib.RegisterTesting(s.Reg, &s.Output); err != nil {
 			panic(err)
 		}
+		_ = s.Reg.Function("printed", nil, "string", func([]lmcode.Value) (lmcode.Value, error) {
+			return lmcode.String(s.Output.String()), nil
+		})
 	}
 	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
 		raw, err := fixtureBytes(args[0].Str)

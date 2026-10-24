@@ -1,7 +1,6 @@
 package lmcode
 
 import (
-	"bytes"
 	"io"
 	"os"
 )
@@ -11,23 +10,11 @@ func RegisterTesting(r *Registry, output io.Writer) error {
 	if output == nil {
 		output = os.Stdout
 	}
-	captured, isBuffer := output.(*bytes.Buffer)
-	if !isBuffer {
-		captured = &bytes.Buffer{}
-	}
 	if err := r.Function("print", []string{"string"}, "void", func(args []Value) (Value, error) {
 		if _, err := io.WriteString(output, args[0].Str+"\n"); err != nil {
 			return None(), NewHostError(err.Error())
 		}
-		if !isBuffer {
-			_, _ = io.WriteString(captured, args[0].Str+"\n")
-		}
 		return None(), nil
-	}); err != nil {
-		return err
-	}
-	if err := r.Function("printed", nil, "string", func([]Value) (Value, error) {
-		return Str(captured.String()), nil
 	}); err != nil {
 		return err
 	}
