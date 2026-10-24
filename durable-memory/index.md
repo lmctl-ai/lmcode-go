@@ -4,7 +4,7 @@ Go bytecode runtime for the lmscript `_dsl_` framework. The package provides a d
 
 Status: experimental public v5 integration. Module path `github.com/lmctl-ai/lmcode-go`, root package `lmcode`. Zero third-party dependencies (`go.mod` has no `require`). Go 1.26+ toolchain.
 
-The runtime format is owned by the public `lmcode-cpp`, `lmcode-rust`, and `lmcode-go` projects. Bytecode is schema-bound by SHA-256, big-endian, and intentionally has no backward compatibility promise (version 5 only).
+The runtime format is owned by the public `lmcode-cpp`, `lmcode-rust`, `lmcode-go`, and `lmcode-csharp` projects. Bytecode is schema-bound by SHA-256, big-endian, and intentionally has no backward compatibility promise (version 5 only).
 
 The DSL has no bytecode collection values. Hosts expose collections as schema objects with `len()` and `at(i)`. The common language includes loops, compiler-inlined functions, `foreach`, `switch`, `while`, `break`, `continue`, and common numeric math. Source line information is carried into runtime errors by the v5 SDK.
 
