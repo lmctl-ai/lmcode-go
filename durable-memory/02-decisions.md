@@ -8,3 +8,4 @@
 - Host objects: methods accept `self any` and arguments `args []Value`. The VM defensively checks the schema type name of `self` at call time.
 - Host error reporting: callbacks return `(Value, error)`. Non-nil errors preserve existing `*Error` codes or wrap as `RUN_HOST`. Line and column reporting locates errors at the faulting bytecode instruction.
 - Single test command: `go test ./...` runs all 50 conformance vectors, vectors.lock integrity checks, and native unit tests.
+- Standard library catalog: package `stdlib` (`github.com/lmctl-ai/lmcode-go/stdlib`) provides optional host functions starting with `str_len(string) -> int` (byte length, NULs included, raw UTF-8 bytes) and `RegisterString` binder.

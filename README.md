@@ -72,6 +72,13 @@ func main() {
 
 Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, truncation, trailing bytes, unknown constant tags, undecodable instructions, out-of-range constant/local/import/context indexes, calls whose import kind or arity differ, ordinary jumps that miss an instruction start, go backwards outside a paired `LOOP_BACK` or cross a loop boundary, malformed or misnested range/while loops, unknown MATH function IDs, writes to their read-only hidden locals, a missing HALT, and context declarations or import signatures the registry does not provide (the message names the host's own signature for that name) are refused with a message that names the problem. `Run()` checks value kinds defensively and imposes no limits: no stack cap, no locals cap, no string cap; `max_stack` from the file is a reservation hint. Integer arithmetic is 64-bit two's complement and wraps; division and remainder by zero are run-time errors.
 
+## Standard library catalog
+
+`github.com/lmctl-ai/lmcode-go/stdlib` holds optional host functions shared with the other lmcode SDKs; copy the matching `functions` fragment from
+`stdlib/string.schema-fragment.json` into the host schema and call `stdlib.RegisterString(registry)`. Implemented so far:
+`str_len(string) -> int` (byte length, NULs included; UTF-8 is not decoded). Signature parity with the compiler is checked by
+`go test ./stdlib/...` whenever `lmscript` (or `$LMSCRIPT_BIN`) is on PATH.
+
 ## Build and test
 
 Run the entire test suite (unit tests and all 50 conformance vectors):

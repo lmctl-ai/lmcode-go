@@ -1,0 +1,10 @@
+out = ARGV.len() > 0 ? ARGV[0] : "strlen.dslb";
+chunk = _dsl_ schema="strlen.schema.json";
+trace_int(str_len(""));
+trace_int(str_len("hello"));
+trace_int(str_len("é"));
+trace_int(str_len("日本"));
+trace_int(str_len("hello, world!"));
+end _dsl_
+savedsl(chunk, out);
+println(f"wrote {out}");
