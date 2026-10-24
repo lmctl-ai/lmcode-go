@@ -1,0 +1,23 @@
+$ go test -v .
+=== RUN   TestValidPrograms
+--- PASS: TestValidPrograms (0.00s)
+=== RUN   TestMathFunctions
+--- PASS: TestMathFunctions (0.00s)
+=== RUN   TestStructuredLoops
+--- PASS: TestStructuredLoops (0.00s)
+=== RUN   TestInt64WraparoundAndRemainder
+--- PASS: TestInt64WraparoundAndRemainder (0.00s)
+=== RUN   TestLoaderRejections
+--- PASS: TestLoaderRejections (0.00s)
+=== RUN   TestRuntimeChecks
+--- PASS: TestRuntimeChecks (0.00s)
+=== RUN   TestRuntimeErrorCodes
+--- PASS: TestRuntimeErrorCodes (0.00s)
+=== RUN   TestSourceLineLocation
+--- PASS: TestSourceLineLocation (0.00s)
+=== RUN   TestJSONResultHelpers
+--- PASS: TestJSONResultHelpers (0.00s)
+=== RUN   TestNoResourceLimits
+--- PASS: TestNoResourceLimits (0.08s)
+PASS
+ok  	github.com/lmctl-ai/lmcode-go	0.098s

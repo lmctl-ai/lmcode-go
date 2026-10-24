@@ -1,0 +1,4 @@
+$ lmscript examples/greeter/build.lms greeter.dslb
+wrote greeter.dslb
+$ ./bin/greeter greeter.dslb examples/greeter/schema.json
+Hello from Go DSL at 2026-10-24
