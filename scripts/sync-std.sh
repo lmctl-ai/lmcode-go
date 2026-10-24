@@ -13,7 +13,7 @@ if [ "${1:-}" = "--verify" ]; then
 	echo "std schema matches std.lock ($(sed -n 's/^commit=//p' "$LOCK"))"
 	exit 0
 fi
-	[ -d "$SDK/.git" ] || { echo "lmcode-cpp checkout not found at $SDK" >&2; exit 1; }
+	git -C "$SDK" rev-parse --git-dir >/dev/null 2>&1 || { echo "lmcode-cpp checkout not found at $SDK" >&2; exit 1; }
 	commit="$(git -C "$SDK" log -1 --format=%H -- std/lmcode-std.schema.json)"
 	git -C "$SDK" show "$commit:std/lmcode-std.schema.json" > "$DST"
 	digest="$(sha256sum "$DST" | cut -d' ' -f1)"
