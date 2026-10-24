@@ -1,14 +1,60 @@
 package lmcode_test
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 
 	lmcode "github.com/lmctl-ai/lmcode-go"
 )
 
+func canonicalSignatures(t *testing.T) []string {
+	t.Helper()
+	data, err := os.ReadFile("std/lmcode-std.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Functions map[string][]struct {
+			Params  []string `json:"params"`
+			Returns string   `json:"returns"`
+		} `json:"functions"`
+		Types map[string]struct {
+			Methods map[string][]struct {
+				Params  []string `json:"params"`
+				Returns string   `json:"returns"`
+			} `json:"methods"`
+		} `json:"types"`
+	}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for n, defs := range schema.Functions {
+		for _, d := range defs {
+			out = append(out, fmt.Sprintf("fn %s(%s) -> %s", n, strings.Join(d.Params, ", "), d.Returns))
+		}
+	}
+	for typ, methods := range schema.Types {
+		for n, defs := range methods.Methods {
+			for _, d := range defs {
+				out = append(out, fmt.Sprintf("method %s.%s(%s) -> %s", typ, n, strings.Join(d.Params, ", "), d.Returns))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 	defaultReg := lmcode.NewRegistry()
+	if got, want := defaultReg.Signatures(), canonicalSignatures(t); !reflect.DeepEqual(got, want) {
+		t.Fatalf("default std signatures = %v, want canonical %v", got, want)
+	}
 	if defaultReg.FunctionBySignature("fn str_len(string) -> int") == nil {
 		t.Fatal("default registry did not install std")
 	}

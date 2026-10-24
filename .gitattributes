@@ -4,3 +4,4 @@ conformance/vectors/*.dsl text eol=lf
 conformance/vectors/*.expect text eol=lf
 conformance/vectors/*.json text eol=lf
 conformance/vectors/*.dslb binary
+std/*.json text eol=lf
