@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -60,6 +62,7 @@ func TestCollectionsFragmentParity(t *testing.T) {
 	if got := r.Signatures(); !equalStrings(got, want) {
 		t.Fatalf("collection signatures = %v, want %v", got, want)
 	}
+	assertCompilerParity(t, r, "collections.schema-fragment.json")
 }
 
 func TestTestingFragmentParity(t *testing.T) {
@@ -70,6 +73,46 @@ func TestTestingFragmentParity(t *testing.T) {
 	want := fragmentSignatures(t, "testing.schema-fragment.json")
 	if got := r.Signatures(); !equalStrings(got, want) {
 		t.Fatalf("testing signatures = %v, want %v", got, want)
+	}
+	assertCompilerParity(t, r, "testing.schema-fragment.json")
+}
+
+func assertCompilerParity(t *testing.T, registry *lmcode.Registry, fragmentPath string) {
+	t.Helper()
+	compiler := os.Getenv("LMSCRIPT_BIN")
+	if compiler == "" {
+		var err error
+		compiler, err = exec.LookPath("lmscript")
+		if err != nil {
+			t.Skip("lmscript not found on PATH; compiler parity skipped")
+		}
+	}
+	fragment, err := os.ReadFile(fragmentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(fragment, &fields); err != nil {
+		t.Fatal(err)
+	}
+	fields["dsl.schema"] = json.RawMessage("2")
+	fields["name"] = json.RawMessage(`"catalog_parity"`)
+	schema, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "schema.json")
+	if err := os.WriteFile(path, schema, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(compiler, "--dsl-signatures", path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("compiler failed (%v): %s", err, out)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	sort.Strings(lines)
+	if !equalStrings(lines, registry.Signatures()) {
+		t.Fatalf("compiler signatures = %v, registry signatures = %v", lines, registry.Signatures())
 	}
 }
 
