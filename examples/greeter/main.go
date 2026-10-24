@@ -22,8 +22,10 @@ func main() {
 		return lmcode.String("2026-10-24"), nil
 	})
 
-	if len(os.Args) > 1 && os.Args[1] == "--dsl-signatures" {
-		for _, s := range reg.Signatures() {
+	if len(os.Args) > 1 && (os.Args[1] == "--dsl-signatures" || os.Args[1] == "--host-signatures") {
+		signatures := reg.Signatures()
+		if os.Args[1] == "--host-signatures" { signatures = reg.HostSignatures() }
+		for _, s := range signatures {
 			fmt.Println(s)
 		}
 		return

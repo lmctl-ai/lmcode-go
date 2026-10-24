@@ -10,8 +10,9 @@ if [ -f "$BIN.exe" ]; then
   BIN="$BIN.exe"
 fi
 
-# Introspection signatures test
-diff -u <("$BIN" --dsl-signatures | tr -d '\r') <(
+# Introspection host signatures test. The default registry also contains the
+# canonical std surface, so compare the host-only view to the host schema.
+diff -u <("$BIN" --host-signatures | tr -d '\r') <(
   if command -v lmscript >/dev/null 2>&1; then
     lmscript --dsl-signatures "$HERE/schema.json" | tr -d '\r'
   else
