@@ -81,7 +81,7 @@ func TestMathFloatEdges(t *testing.T) {
 }
 
 func TestRegisterMath(t *testing.T) {
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterMath(r); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestMathCompilerSignatureParity(t *testing.T) {
 		}
 	}
 	sort.Strings(expected)
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterMath(r); err != nil {
 		t.Fatal(err)
 	}

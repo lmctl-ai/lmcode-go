@@ -11,7 +11,7 @@ import (
 
 func TestTestingCatalog(t *testing.T) {
 	var output bytes.Buffer
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterTesting(r, &output); err != nil {
 		t.Fatal(err)
 	}

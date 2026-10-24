@@ -67,18 +67,34 @@ func (c *Context) Get(name string) any {
 
 // Registry declares the schema's types, context objects, methods, and functions.
 type Registry struct {
-	functions map[string]*FunctionEntry // canonical signature -> entry
-	methods   map[string]*MethodEntry   // canonical signature -> entry
-	contexts  map[string]string         // name -> schema type name
+	functions        map[string]*FunctionEntry // canonical signature -> entry
+	methods          map[string]*MethodEntry   // canonical signature -> entry
+	contexts         map[string]string         // name -> schema type name
+	builtinFunctions map[string]bool
+	builtinMethods   map[string]bool
+	stdSignatures    map[string]bool
+	stdInstalled     bool
+	stdCollections   *Collections
+	runDepth         int
 }
 
 // NewRegistry creates an empty Registry.
 func NewRegistry() *Registry {
-	return &Registry{
-		functions: make(map[string]*FunctionEntry),
-		methods:   make(map[string]*MethodEntry),
-		contexts:  make(map[string]string),
+	r := &Registry{
+		functions:        make(map[string]*FunctionEntry),
+		methods:          make(map[string]*MethodEntry),
+		contexts:         make(map[string]string),
+		builtinFunctions: make(map[string]bool),
+		builtinMethods:   make(map[string]bool),
+		stdSignatures:    make(map[string]bool),
 	}
+	_ = RegisterStd(r)
+	return r
+}
+
+// NewRegistryWithoutStd creates an empty registry for legacy or custom hosts.
+func NewRegistryWithoutStd() *Registry {
+	return &Registry{functions: make(map[string]*FunctionEntry), methods: make(map[string]*MethodEntry), contexts: make(map[string]string), builtinFunctions: make(map[string]bool), builtinMethods: make(map[string]bool), stdSignatures: make(map[string]bool)}
 }
 
 // Context declares a context variable name and its schema type.
@@ -99,6 +115,12 @@ func (r *Registry) Function(name string, params []string, returns string, fn Fun
 
 	for _, entry := range r.functions {
 		if entry.Name == name && slices.Equal(entry.Sig.Params, sig.Params) {
+			canonical := "fn " + name + sig.Text()
+			if r.builtinFunctions[canonical] {
+				r.functions[canonical] = &FunctionEntry{Name: name, Sig: sig, Fn: fn}
+				delete(r.builtinFunctions, canonical)
+				return nil
+			}
 			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: function '%s%s' is registered twice", name, sig.Text()))
 		}
 	}
@@ -120,6 +142,12 @@ func (r *Registry) Method(typeName, name string, params []string, returns string
 
 	for _, entry := range r.methods {
 		if entry.Type == typeName && entry.Name == name && slices.Equal(entry.Sig.Params, sig.Params) {
+			canonical := "method " + typeName + "." + name + sig.Text()
+			if r.builtinMethods[canonical] {
+				r.methods[canonical] = &MethodEntry{Type: typeName, Name: name, Sig: sig, Fn: fn}
+				delete(r.builtinMethods, canonical)
+				return nil
+			}
 			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: method '%s.%s%s' is registered twice", typeName, name, sig.Text()))
 		}
 	}
@@ -132,6 +160,103 @@ func (r *Registry) Method(typeName, name string, params []string, returns string
 		Fn:   fn,
 	}
 	return nil
+}
+
+// RegisterStd installs the canonical built-in standard catalog once.
+func RegisterStd(r *Registry) error {
+	if r.stdInstalled {
+		return nil
+	}
+	beforeF, beforeM := map[string]bool{}, map[string]bool{}
+	for k := range r.functions {
+		beforeF[k] = true
+	}
+	for k := range r.methods {
+		beforeM[k] = true
+	}
+	if err := RegisterString(r); err != nil {
+		return err
+	}
+	if err := RegisterStdMath(r); err != nil {
+		return err
+	}
+	r.stdCollections = NewCollections()
+	if err := RegisterCollections(r, r.stdCollections); err != nil {
+		return err
+	}
+	if err := RegisterTesting(r, nil); err != nil {
+		return err
+	}
+	for k := range r.functions {
+		if !beforeF[k] {
+			r.builtinFunctions[k] = true
+			r.stdSignatures[k] = true
+		}
+	}
+	for k := range r.methods {
+		if !beforeM[k] {
+			r.builtinMethods[k] = true
+			r.stdSignatures[k] = true
+		}
+	}
+	r.stdInstalled = true
+	return nil
+}
+
+func (r *Registry) beginRun() {
+	if r.runDepth == 0 && r.stdCollections != nil {
+		r.stdCollections.Reset()
+	}
+	r.runDepth++
+}
+
+func (r *Registry) endRun() {
+	if r.runDepth > 0 {
+		r.runDepth--
+	}
+}
+
+// HostSignatures returns declarations excluding canonical built-in signatures.
+func (r *Registry) HostSignatures() []string {
+	var out []string
+	for _, s := range r.Signatures() {
+		if !r.stdSignatures[s] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// CheckSchemaSignatures checks the host declarations plus enabled built-ins against a schema signature set.
+func (r *Registry) CheckSchemaSignatures(schema []string) error {
+	want := map[string]bool{}
+	for _, s := range schema {
+		want[s] = true
+	}
+	for s := range r.stdSignatures {
+		want[s] = true
+	}
+	got := map[string]bool{}
+	for _, s := range r.Signatures() {
+		got[s] = true
+	}
+	var missing, extra []string
+	for s := range want {
+		if !got[s] {
+			missing = append(missing, s)
+		}
+	}
+	for s := range got {
+		if !want[s] {
+			extra = append(extra, s)
+		}
+	}
+	if len(missing) == 0 && len(extra) == 0 {
+		return nil
+	}
+	sort.Strings(missing)
+	sort.Strings(extra)
+	return NewError(LOAD_UNBOUND, fmt.Sprintf("schema signatures differ: missing %s; extra %s", strings.Join(missing, ", "), strings.Join(extra, ", ")))
 }
 
 // Signatures returns sorted canonical strings matching `lmscript --dsl-signatures SCHEMA`.

@@ -173,7 +173,7 @@ func TestCatalogByteSemanticsAndEdges(t *testing.T) {
 }
 
 func TestSignatureParityAgainstFragment(t *testing.T) {
-	reg := lmcode.NewRegistry()
+	reg := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterString(reg); err != nil {
 		t.Fatalf("RegisterString: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestCompilerSignaturesParity(t *testing.T) {
 	compilerSigs = append(compilerSigs, rawLines...)
 	sort.Strings(compilerSigs)
 
-	reg := lmcode.NewRegistry()
+	reg := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterString(reg); err != nil {
 		t.Fatalf("RegisterString: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestStrLenEndToEnd(t *testing.T) {
 		t.Fatalf("ReadFile(%s): %v", schemaPath, err)
 	}
 
-	reg := lmcode.NewRegistry()
+	reg := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterString(reg); err != nil {
 		t.Fatalf("RegisterString: %v", err)
 	}

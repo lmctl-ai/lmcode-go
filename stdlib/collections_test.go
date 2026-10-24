@@ -54,7 +54,7 @@ func fragmentSignatures(t *testing.T, path string) []string {
 }
 
 func TestCollectionsFragmentParity(t *testing.T) {
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterCollections(r); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestCollectionsFragmentParity(t *testing.T) {
 }
 
 func TestTestingFragmentParity(t *testing.T) {
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterTesting(r, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func collectionMethod(t *testing.T, r *lmcode.Registry, sig string, self any, ar
 }
 
 func TestCollectionsListsAndMap(t *testing.T) {
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	if err := stdlib.RegisterCollections(r); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestCollectionsListsAndMap(t *testing.T) {
 }
 
 func TestCollectionsErrorsAndArenaLimit(t *testing.T) {
-	r := lmcode.NewRegistry()
+	r := lmcode.NewRegistryWithoutStd()
 	arena := stdlib.NewCollections()
 	if err := stdlib.RegisterCollections(r, arena); err != nil {
 		t.Fatal(err)
