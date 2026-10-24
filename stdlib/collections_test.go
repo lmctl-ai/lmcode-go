@@ -155,8 +155,15 @@ func TestCollectionsListsAndMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	list := collectionFn(t, r, "fn str_list() -> StrList").Obj
+	strs, ok := list.(*stdlib.StrList)
+	if !ok {
+		t.Fatalf("str_list object type = %T", list)
+	}
 	collectionMethod(t, r, "method StrList.add(string) -> StrList", list, lmcode.Str("a"))
 	collectionMethod(t, r, "method StrList.add(string) -> StrList", list, lmcode.Str("\x00b"))
+	if got := strs.Values(); len(got) != 2 || got[0] != "a" || got[1] != "\x00b" {
+		t.Fatalf("str_list values = %#v", got)
+	}
 	joined, err := collectionMethod(t, r, "method StrList.join(string) -> string", list, lmcode.Str(","))
 	if err != nil || joined.Str != "a,\x00b" {
 		t.Fatalf("join = %q, %v", joined.Str, err)
@@ -174,9 +181,16 @@ func TestCollectionsListsAndMap(t *testing.T) {
 	}
 
 	m := collectionFn(t, r, "fn str_map() -> StrMap").Obj
+	strMap, ok := m.(*stdlib.StrMap)
+	if !ok {
+		t.Fatalf("str_map object type = %T", m)
+	}
 	collectionMethod(t, r, "method StrMap.set(string, string) -> StrMap", m, lmcode.Str("a"), lmcode.Str("1"))
 	collectionMethod(t, r, "method StrMap.set(string, string) -> StrMap", m, lmcode.Str("b"), lmcode.Str("2"))
 	collectionMethod(t, r, "method StrMap.set(string, string) -> StrMap", m, lmcode.Str("a"), lmcode.Str("3"))
+	if got := strMap.Entries(); len(got) != 2 || got[0].Key != "a" || got[0].Value != "3" || got[1].Key != "b" {
+		t.Fatalf("str_map entries = %#v", got)
+	}
 	key, err := collectionMethod(t, r, "method StrMap.key_at(int) -> string", m, lmcode.Int(0))
 	if err != nil || key.Str != "a" {
 		t.Fatalf("key order = %q, %v", key.Str, err)

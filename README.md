@@ -82,6 +82,8 @@ The optional math catalog in `stdlib/math.schema-fragment.json` provides `math_a
 
 The collections and testing catalogs are declared in `stdlib/collections.schema-fragment.json` and `stdlib/testing.schema-fragment.json`. `RegisterCollections` creates a fresh 65536-object arena by default; hosts that reuse a registry across runs may pass a `*stdlib.Collections` and call `Reset` after old handles expire. `RegisterTesting` accepts an output writer, with nil selecting stdout.
 
+Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
+
 ## Build and test
 
 Run the entire test suite (unit tests, 51 core vectors and 61 optional catalog vectors):

@@ -30,12 +30,33 @@ func (a *Collections) object(typeName string, value any) (lmcode.Value, error) {
 	return lmcode.Object(typeName, value), nil
 }
 
-type strList struct{ values []string }
-type intList struct{ values []int64 }
-type floatList struct{ values []float64 }
-type strMap struct {
+type StrList struct{ values []string }
+type IntList struct{ values []int64 }
+type FloatList struct{ values []float64 }
+type StrMap struct {
 	keys   []string
 	values map[string]string
+}
+
+// Values returns a snapshot of the list's current byte strings.
+func (l *StrList) Values() []string { return append([]string(nil), l.values...) }
+
+// Values returns a snapshot of the list's current integers.
+func (l *IntList) Values() []int64 { return append([]int64(nil), l.values...) }
+
+// Values returns a snapshot of the list's current floats.
+func (l *FloatList) Values() []float64 { return append([]float64(nil), l.values...) }
+
+// StrMapEntry is one key/value pair in insertion order.
+type StrMapEntry struct{ Key, Value string }
+
+// Entries returns a snapshot of the map in insertion order.
+func (m *StrMap) Entries() []StrMapEntry {
+	entries := make([]StrMapEntry, 0, len(m.keys))
+	for _, key := range m.keys {
+		entries = append(entries, StrMapEntry{Key: key, Value: m.values[key]})
+	}
+	return entries
 }
 
 func collectionIndex(typeName, method string, index int64, length int) (int, error) {
@@ -59,22 +80,22 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 	}
 
 	if err := add("str_list", nil, "StrList", func([]lmcode.Value) (lmcode.Value, error) {
-		return arena.object("StrList", &strList{})
+		return arena.object("StrList", &StrList{})
 	}); err != nil {
 		return err
 	}
 	if err := add("int_list", nil, "IntList", func([]lmcode.Value) (lmcode.Value, error) {
-		return arena.object("IntList", &intList{})
+		return arena.object("IntList", &IntList{})
 	}); err != nil {
 		return err
 	}
 	if err := add("float_list", nil, "FloatList", func([]lmcode.Value) (lmcode.Value, error) {
-		return arena.object("FloatList", &floatList{})
+		return arena.object("FloatList", &FloatList{})
 	}); err != nil {
 		return err
 	}
 	if err := add("str_map", nil, "StrMap", func([]lmcode.Value) (lmcode.Value, error) {
-		return arena.object("StrMap", &strMap{values: make(map[string]string)})
+		return arena.object("StrMap", &StrMap{values: make(map[string]string)})
 	}); err != nil {
 		return err
 	}
@@ -84,7 +105,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.None(), lmcode.NewHostError("str_split: separator must not be empty")
 		}
 		parts := strings.Split(args[0].Str, separator)
-		return arena.object("StrList", &strList{values: parts})
+		return arena.object("StrList", &StrList{values: parts})
 	}); err != nil {
 		return err
 	}
@@ -102,21 +123,21 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 		fn       lmcode.Method
 	}{
 		{"StrList", nil, "int", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Int(int64(len(self.(*strList).values))), nil
+			return lmcode.Int(int64(len(self.(*StrList).values))), nil
 		}},
 		{"StrList", []string{"int"}, "string", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			i, err := collectionIndex("StrList", "at", a[0].Int, len(self.(*strList).values))
+			i, err := collectionIndex("StrList", "at", a[0].Int, len(self.(*StrList).values))
 			if err != nil {
 				return lmcode.None(), err
 			}
-			return lmcode.Str(self.(*strList).values[i]), nil
+			return lmcode.Str(self.(*StrList).values[i]), nil
 		}},
 		{"StrList", []string{"string"}, "StrList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			self.(*strList).values = append(self.(*strList).values, a[0].Str)
+			self.(*StrList).values = append(self.(*StrList).values, a[0].Str)
 			return lmcode.Object("StrList", self), nil
 		}},
 		{"StrList", []string{"int", "string"}, "StrList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			l := self.(*strList)
+			l := self.(*StrList)
 			i, err := collectionIndex("StrList", "set", a[0].Int, len(l.values))
 			if err != nil {
 				return lmcode.None(), err
@@ -125,7 +146,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Object("StrList", self), nil
 		}},
 		{"StrList", []string{"string"}, "bool", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for _, v := range self.(*strList).values {
+			for _, v := range self.(*StrList).values {
 				if v == a[0].Str {
 					return lmcode.Bool(true), nil
 				}
@@ -133,7 +154,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Bool(false), nil
 		}},
 		{"StrList", []string{"string"}, "int", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for i, v := range self.(*strList).values {
+			for i, v := range self.(*StrList).values {
 				if v == a[0].Str {
 					return lmcode.Int(int64(i)), nil
 				}
@@ -141,28 +162,28 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Int(-1), nil
 		}},
 		{"StrList", []string{"string"}, "string", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Str(strings.Join(self.(*strList).values, a[0].Str)), nil
+			return lmcode.Str(strings.Join(self.(*StrList).values, a[0].Str)), nil
 		}},
 		{"StrList", nil, "StrList", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			self.(*strList).values = self.(*strList).values[:0]
+			self.(*StrList).values = self.(*StrList).values[:0]
 			return lmcode.Object("StrList", self), nil
 		}},
 		{"IntList", nil, "int", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Int(int64(len(self.(*intList).values))), nil
+			return lmcode.Int(int64(len(self.(*IntList).values))), nil
 		}},
 		{"IntList", []string{"int"}, "int", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			i, err := collectionIndex("IntList", "at", a[0].Int, len(self.(*intList).values))
+			i, err := collectionIndex("IntList", "at", a[0].Int, len(self.(*IntList).values))
 			if err != nil {
 				return lmcode.None(), err
 			}
-			return lmcode.Int(self.(*intList).values[i]), nil
+			return lmcode.Int(self.(*IntList).values[i]), nil
 		}},
 		{"IntList", []string{"int"}, "IntList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			self.(*intList).values = append(self.(*intList).values, a[0].Int)
+			self.(*IntList).values = append(self.(*IntList).values, a[0].Int)
 			return lmcode.Object("IntList", self), nil
 		}},
 		{"IntList", []string{"int", "int"}, "IntList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			l := self.(*intList)
+			l := self.(*IntList)
 			i, err := collectionIndex("IntList", "set", a[0].Int, len(l.values))
 			if err != nil {
 				return lmcode.None(), err
@@ -171,7 +192,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Object("IntList", self), nil
 		}},
 		{"IntList", []string{"int"}, "bool", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for _, v := range self.(*intList).values {
+			for _, v := range self.(*IntList).values {
 				if v == a[0].Int {
 					return lmcode.Bool(true), nil
 				}
@@ -179,7 +200,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Bool(false), nil
 		}},
 		{"IntList", []string{"int"}, "int", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for i, v := range self.(*intList).values {
+			for i, v := range self.(*IntList).values {
 				if v == a[0].Int {
 					return lmcode.Int(int64(i)), nil
 				}
@@ -187,25 +208,25 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Int(-1), nil
 		}},
 		{"IntList", nil, "IntList", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			self.(*intList).values = self.(*intList).values[:0]
+			self.(*IntList).values = self.(*IntList).values[:0]
 			return lmcode.Object("IntList", self), nil
 		}},
 		{"FloatList", nil, "int", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Int(int64(len(self.(*floatList).values))), nil
+			return lmcode.Int(int64(len(self.(*FloatList).values))), nil
 		}},
 		{"FloatList", []string{"int"}, "float", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			i, err := collectionIndex("FloatList", "at", a[0].Int, len(self.(*floatList).values))
+			i, err := collectionIndex("FloatList", "at", a[0].Int, len(self.(*FloatList).values))
 			if err != nil {
 				return lmcode.None(), err
 			}
-			return lmcode.Float(self.(*floatList).values[i]), nil
+			return lmcode.Float(self.(*FloatList).values[i]), nil
 		}},
 		{"FloatList", []string{"float"}, "FloatList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			self.(*floatList).values = append(self.(*floatList).values, a[0].Float)
+			self.(*FloatList).values = append(self.(*FloatList).values, a[0].Float)
 			return lmcode.Object("FloatList", self), nil
 		}},
 		{"FloatList", []string{"int", "float"}, "FloatList", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			l := self.(*floatList)
+			l := self.(*FloatList)
 			i, err := collectionIndex("FloatList", "set", a[0].Int, len(l.values))
 			if err != nil {
 				return lmcode.None(), err
@@ -214,7 +235,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Object("FloatList", self), nil
 		}},
 		{"FloatList", []string{"float"}, "bool", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for _, v := range self.(*floatList).values {
+			for _, v := range self.(*FloatList).values {
 				if v == a[0].Float {
 					return lmcode.Bool(true), nil
 				}
@@ -222,7 +243,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Bool(false), nil
 		}},
 		{"FloatList", []string{"float"}, "int", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			for i, v := range self.(*floatList).values {
+			for i, v := range self.(*FloatList).values {
 				if v == a[0].Float {
 					return lmcode.Int(int64(i)), nil
 				}
@@ -230,18 +251,18 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Int(-1), nil
 		}},
 		{"FloatList", nil, "FloatList", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			self.(*floatList).values = self.(*floatList).values[:0]
+			self.(*FloatList).values = self.(*FloatList).values[:0]
 			return lmcode.Object("FloatList", self), nil
 		}},
 		{"StrMap", nil, "int", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Int(int64(len(self.(*strMap).keys))), nil
+			return lmcode.Int(int64(len(self.(*StrMap).keys))), nil
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			_, ok := self.(*strMap).values[a[0].Str]
+			_, ok := self.(*StrMap).values[a[0].Str]
 			return lmcode.Bool(ok), nil
 		}},
 		{"StrMap", []string{"string"}, "string", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			m := self.(*strMap)
+			m := self.(*StrMap)
 			v, ok := m.values[a[0].Str]
 			if !ok {
 				return lmcode.None(), lmcode.NewHostError("StrMap.get: missing key")
@@ -249,13 +270,13 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Str(v), nil
 		}},
 		{"StrMap", []string{"string", "string"}, "string", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			if v, ok := self.(*strMap).values[a[0].Str]; ok {
+			if v, ok := self.(*StrMap).values[a[0].Str]; ok {
 				return lmcode.Str(v), nil
 			}
 			return lmcode.Str(a[1].Str), nil
 		}},
 		{"StrMap", []string{"string", "string"}, "StrMap", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			m := self.(*strMap)
+			m := self.(*StrMap)
 			if _, ok := m.values[a[0].Str]; !ok {
 				m.keys = append(m.keys, a[0].Str)
 			}
@@ -263,7 +284,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Object("StrMap", self), nil
 		}},
 		{"StrMap", []string{"int"}, "string", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			m := self.(*strMap)
+			m := self.(*StrMap)
 			i, err := collectionIndex("StrMap", "key_at", a[0].Int, len(m.keys))
 			if err != nil {
 				return lmcode.None(), err
@@ -271,7 +292,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Str(m.keys[i]), nil
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []lmcode.Value) (lmcode.Value, error) {
-			m := self.(*strMap)
+			m := self.(*StrMap)
 			if _, ok := m.values[a[0].Str]; !ok {
 				return lmcode.Bool(false), nil
 			}
@@ -285,7 +306,7 @@ func RegisterCollections(r *lmcode.Registry, arenas ...*Collections) error {
 			return lmcode.Bool(true), nil
 		}},
 		{"StrMap", nil, "StrMap", func(self any, _ []lmcode.Value) (lmcode.Value, error) {
-			m := self.(*strMap)
+			m := self.(*StrMap)
 			clear(m.values)
 			m.keys = m.keys[:0]
 			return lmcode.Object("StrMap", self), nil
