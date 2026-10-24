@@ -95,7 +95,7 @@ The collections and testing catalogs are declared in `stdlib/collections.schema-
 
 Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
 
-The root `lmcode` package owns the canonical 69-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
+The root `lmcode` package owns the canonical 72-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
 
 ## Build and test
 
@@ -129,3 +129,14 @@ The same bytecode v5 and the same conformance vectors are implemented by:
 ## License
 
 MIT License. Copyright (c) 2026 Lattice Systems LLC.
+
+Built-in std has four areas: strings, math, collections, and files. `file_read`,
+`file_write` (create/truncate), and `file_append` preserve every content byte.
+`file_exists` is true only for regular files; missing paths and directories are
+false. `file_lines` splits LF bytes into an arena-owned StrList, preserving CR
+and empty fields, including the final field (`"a\n"` becomes `["a", ""]`).
+Relative paths use the process cwd without sandbox restrictions; Unix passes
+path bytes unchanged, while Windows requires UTF-8 paths and supports long names.
+Failures trap with `RUN_HOST` and `FUNCTION: PATH: OS_REASON`.
+Testing is outside std: hosts declare its separate fragment and explicitly call
+`stdlib.RegisterTesting(registry, writer)` for `print`/`assert_close`.

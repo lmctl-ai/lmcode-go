@@ -52,7 +52,7 @@ bash examples/greeter/test.sh
 
 The shared catalog vectors use `bytes(hex)` to supply raw bytes and `Trace.hex(string)` to record lowercase hexadecimal. Both fixture adapters are test-host functions, not SDK catalog entries. Native vector tests verify lock digests without starting bash; the sync script remains available for manual updates. CI runs both standalone vector directories on Linux x64/arm64, macOS x64/arm64, and Windows x64.
 
-The root standard surface is pinned separately: `bash scripts/sync-std.sh --verify` checks `std/lmcode-std.schema.json` against `std.lock`. The native registry test compares its 69 enabled signatures with the pinned schema.
+The root standard surface is pinned separately: `bash scripts/sync-std.sh --verify` checks `std/lmcode-std.schema.json` against `std.lock`. The native registry test compares its 72 enabled signatures with the pinned schema.
 
 Static analysis and a dependency-free build:
 
@@ -60,3 +60,10 @@ Static analysis and a dependency-free build:
 go vet ./...
 CGO_ENABLED=0 go build ./...
 ```
+
+The synchronized catalog suite contains 77 vectors, including 16 file cases;
+the core suite remains 51. File fixtures own a fresh temporary directory per
+case and remove it afterward. `test_long_path` creates a Unicode filename past
+260 characters. `runtime_error_file` checks the operation/path prefix and a
+nonempty OS reason without depending on localized wording. Compiler parity
+also checks the five-function file fragment and the 72-function standard.
