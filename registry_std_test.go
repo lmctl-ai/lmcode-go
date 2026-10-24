@@ -109,3 +109,29 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 		t.Fatal("ordinary host override of built-in tuple was accepted")
 	}
 }
+
+func TestTestingCatalogRemainsHostOptional(t *testing.T) {
+	r := lmcode.NewRegistry()
+	if len(r.StdSignatures()) != 72 {
+		t.Fatalf("default std count = %d", len(r.StdSignatures()))
+	}
+	if err := lmcode.RegisterTesting(r, nil); err != nil {
+		t.Fatal(err)
+	}
+	host := r.HostSignatures()
+	if len(host) != 2 || host[0] != "fn assert_close(float, float, float) -> void" || host[1] != "fn print(string) -> void" {
+		t.Fatalf("testing host signatures = %v", host)
+	}
+	if len(r.StdSignatures()) != 72 {
+		t.Fatalf("std count after testing = %d", len(r.StdSignatures()))
+	}
+	if r.MatchesSchemaSignatures(r.StdSignatures()) {
+		t.Fatal("testing declarations should be required by a host schema")
+	}
+	if !r.MatchesSchemaSignatures(append(append([]string{}, r.StdSignatures()...), host...)) {
+		t.Fatal("merged testing schema should match")
+	}
+	if err := lmcode.RegisterTesting(r, nil); err == nil {
+		t.Fatal("duplicate testing registration accepted")
+	}
+}
