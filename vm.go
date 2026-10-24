@@ -145,7 +145,9 @@ func intFromFloat(x float64) int64 {
 // Run executes the loaded program once with the provided context and registry.
 func (p *Program) Run(ctx *Context, reg *Registry, stats ...*RunStats) error {
 	if reg != nil {
-		reg.beginRun()
+		if err := reg.beginRun(); err != nil {
+			return err
+		}
 		defer reg.endRun()
 	}
 	stack := make([]Value, 0, p.maxStack)

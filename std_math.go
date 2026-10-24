@@ -145,7 +145,7 @@ func RegisterStdMath(r *Registry) error {
 		{"math_sqrt", "float", []string{"float"}, func(a []Value) (Value, error) { return Float(math.Sqrt(a[0].Float)), nil }},
 	}
 	for _, e := range entries {
-		if err := r.Function(e.n, e.p, e.t, e.f); err != nil {
+		if err := r.registerBuiltinFunction(e.n, e.p, e.t, e.f); err != nil {
 			return err
 		}
 	}

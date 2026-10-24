@@ -43,7 +43,7 @@ func NewStub(catalog ...bool) *Stub {
 		Root:     &Thing{ID: 0},
 		Variable: &Thing{ID: 0},
 		Xs:       &IntList{Values: []int64{0, 1, 2, 3}},
-		Reg:      lmcode.NewRegistry(),
+		Reg:      lmcode.NewRegistryWithoutStd(),
 	}
 	s.initRegistry(useCatalog)
 	return s

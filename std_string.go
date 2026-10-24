@@ -349,7 +349,7 @@ func RegisterString(r *Registry) error {
 		}},
 	}
 	for _, e := range entries {
-		if err := r.Function(e.n, e.p, e.t, e.f); err != nil {
+		if err := r.registerBuiltinFunction(e.n, e.p, e.t, e.f); err != nil {
 			return err
 		}
 	}

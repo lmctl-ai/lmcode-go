@@ -115,12 +115,6 @@ func (r *Registry) Function(name string, params []string, returns string, fn Fun
 
 	for _, entry := range r.functions {
 		if entry.Name == name && slices.Equal(entry.Sig.Params, sig.Params) {
-			canonical := "fn " + name + sig.Text()
-			if r.builtinFunctions[canonical] {
-				r.functions[canonical] = &FunctionEntry{Name: name, Sig: sig, Fn: fn}
-				delete(r.builtinFunctions, canonical)
-				return nil
-			}
 			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: function '%s%s' is registered twice", name, sig.Text()))
 		}
 	}
@@ -142,12 +136,6 @@ func (r *Registry) Method(typeName, name string, params []string, returns string
 
 	for _, entry := range r.methods {
 		if entry.Type == typeName && entry.Name == name && slices.Equal(entry.Sig.Params, sig.Params) {
-			canonical := "method " + typeName + "." + name + sig.Text()
-			if r.builtinMethods[canonical] {
-				r.methods[canonical] = &MethodEntry{Type: typeName, Name: name, Sig: sig, Fn: fn}
-				delete(r.builtinMethods, canonical)
-				return nil
-			}
 			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: method '%s.%s%s' is registered twice", typeName, name, sig.Text()))
 		}
 	}
@@ -159,6 +147,30 @@ func (r *Registry) Method(typeName, name string, params []string, returns string
 		Sig:  sig,
 		Fn:   fn,
 	}
+	return nil
+}
+
+func (r *Registry) registerBuiltinFunction(name string, params []string, returns string, fn Function) error {
+	canonical := "fn " + name + Signature{Params: params, Returns: returns}.Text()
+	if r.builtinFunctions[canonical] {
+		return nil
+	}
+	if err := r.Function(name, params, returns, fn); err != nil {
+		return err
+	}
+	r.builtinFunctions[canonical], r.stdSignatures[canonical] = true, true
+	return nil
+}
+
+func (r *Registry) registerBuiltinMethod(typ, name string, params []string, returns string, fn Method) error {
+	canonical := "method " + typ + "." + name + Signature{Params: params, Returns: returns}.Text()
+	if r.builtinMethods[canonical] {
+		return nil
+	}
+	if err := r.Method(typ, name, params, returns, fn); err != nil {
+		return err
+	}
+	r.builtinMethods[canonical], r.stdSignatures[canonical] = true, true
 	return nil
 }
 
@@ -203,16 +215,23 @@ func RegisterStd(r *Registry) error {
 	return nil
 }
 
-func (r *Registry) beginRun() {
-	if r.runDepth == 0 && r.stdCollections != nil {
+func (r *Registry) beginRun() error {
+	if r.runDepth != 0 {
+		return NewHostError("registry run already active")
+	}
+	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
-	r.runDepth++
+	r.runDepth = 1
+	return nil
 }
 
 func (r *Registry) endRun() {
 	if r.runDepth > 0 {
-		r.runDepth--
+		r.runDepth = 0
+		if r.stdCollections != nil {
+			r.stdCollections.Reset()
+		}
 	}
 }
 

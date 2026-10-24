@@ -77,13 +77,25 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 	if err := bare.Function("app", nil, "void", func([]lmcode.Value) (lmcode.Value, error) { return lmcode.None(), nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := bare.CheckSchemaSignatures([]string{"fn app() -> void"}); err != nil {
+	if err := bare.Context("ctx", "App"); err != nil {
 		t.Fatal(err)
+	}
+	if err := bare.CheckSchemaSignatures([]string{"context ctx: App", "fn app() -> void"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := bare.HostSignatures(); len(got) != 2 || got[0] != "context ctx: App" {
+		t.Fatalf("host signatures = %v", got)
 	}
 	if err := lmcode.RegisterStd(bare); err != nil {
 		t.Fatal(err)
 	}
 	if bare.FunctionBySignature("fn str_len(string) -> int") == nil {
 		t.Fatal("explicit std registration missing")
+	}
+	if err := lmcode.RegisterString(defaultReg); err != nil {
+		t.Fatalf("idempotent group registration: %v", err)
+	}
+	if err := defaultReg.Function("str_len", []string{"string"}, "int", func([]lmcode.Value) (lmcode.Value, error) { return lmcode.Int(0), nil }); err == nil {
+		t.Fatal("ordinary host override of built-in tuple was accepted")
 	}
 }
