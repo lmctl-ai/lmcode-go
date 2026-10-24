@@ -75,8 +75,7 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 ## Standard library catalog
 
 `github.com/lmctl-ai/lmcode-go/stdlib` holds optional host functions shared with the other lmcode SDKs; copy the matching `functions` fragment from
-`stdlib/string.schema-fragment.json` into the host schema and call `stdlib.RegisterString(registry)`. Implemented so far:
-`str_len(string) -> int` (byte length, NULs included; UTF-8 is not decoded). Signature parity with the compiler is checked by
+`stdlib/string.schema-fragment.json` into the host schema and call `stdlib.RegisterString(registry)`. The full 16-function C++ string catalog is available: `str_len`, `str_starts_with`, `str_ends_with`, `str_contains`, `str_find`, `str_substr`, `str_lower`, `str_upper`, `str_trim`, `str_repeat`, `str_to_int`, `str_is_int`, `str_to_float`, `str_is_float`, `str_replace`, and `str_match`. Strings are raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only. Repeat and replacement preflight a 64 MiB output cap, and glob matching uses a deterministic 2^27 work cap; policy failures return `RUN_HOST`. Signature parity with the compiler is checked by
 `go test ./stdlib/...` whenever `lmscript` (or `$LMSCRIPT_BIN`) is on PATH.
 
 ## Build and test
