@@ -239,6 +239,34 @@ func TestCollectionsErrorsAndArenaLimit(t *testing.T) {
 	}
 }
 
+func TestStrMapBulkRemovalKeepsInsertionOrder(t *testing.T) {
+	r := lmcode.NewRegistryWithoutStd()
+	if err := stdlib.RegisterCollections(r); err != nil {
+		t.Fatal(err)
+	}
+	mapValue := collectionFn(t, r, "fn str_map() -> StrMap").Obj
+	set := r.MethodBySignature("method StrMap.set(string, string) -> StrMap")
+	remove := r.MethodBySignature("method StrMap.remove(string) -> bool")
+	keyAt := r.MethodBySignature("method StrMap.key_at(int) -> string")
+	for i := 0; i < 10000; i++ {
+		k := fmt.Sprintf("k%d", i)
+		if _, err := set.Fn(mapValue, []lmcode.Value{lmcode.Str(k), lmcode.Str(k)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 10000; i += 2 {
+		if _, err := remove.Fn(mapValue, []lmcode.Value{lmcode.Str(fmt.Sprintf("k%d", i))}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 5000; i++ {
+		got, err := keyAt.Fn(mapValue, []lmcode.Value{lmcode.Int(int64(i))})
+		if err != nil || got.Str != fmt.Sprintf("k%d", i*2+1) {
+			t.Fatalf("key_at(%d) = %q, %v", i, got.Str, err)
+		}
+	}
+}
+
 func collectionFnErr(t *testing.T, r *lmcode.Registry, sig string, args ...lmcode.Value) (lmcode.Value, error) {
 	t.Helper()
 	e := r.FunctionBySignature(sig)

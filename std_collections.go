@@ -32,8 +32,12 @@ type StrList struct{ values []string }
 type IntList struct{ values []int64 }
 type FloatList struct{ values []float64 }
 type StrMap struct {
-	keys   []string
-	values map[string]string
+	keys      []string
+	values    map[string]string
+	positions map[string]int
+	deleted   map[int]bool
+	live      int
+	dirty     bool
 }
 
 // Values returns a snapshot of the list's current byte strings.
@@ -50,11 +54,28 @@ type StrMapEntry struct{ Key, Value string }
 
 // Entries returns a snapshot of the map in insertion order.
 func (m *StrMap) Entries() []StrMapEntry {
+	m.compact()
 	entries := make([]StrMapEntry, 0, len(m.keys))
 	for _, key := range m.keys {
 		entries = append(entries, StrMapEntry{Key: key, Value: m.values[key]})
 	}
 	return entries
+}
+
+func (m *StrMap) compact() {
+	if !m.dirty {
+		return
+	}
+	keys := make([]string, 0, m.live)
+	positions := make(map[string]int, m.live)
+	for i, key := range m.keys {
+		if m.deleted[i] {
+			continue
+		}
+		positions[key] = len(keys)
+		keys = append(keys, key)
+	}
+	m.keys, m.positions, m.deleted, m.dirty = keys, positions, make(map[int]bool), false
 }
 
 func collectionIndex(typeName, method string, index int64, length int) (int, error) {
@@ -96,7 +117,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		return err
 	}
 	if err := add("str_map", nil, "StrMap", func([]Value) (Value, error) {
-		return arena.object("StrMap", &StrMap{values: make(map[string]string)})
+		return arena.object("StrMap", &StrMap{values: make(map[string]string), positions: make(map[string]int), deleted: make(map[int]bool)})
 	}); err != nil {
 		return err
 	}
@@ -256,7 +277,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			return Object("FloatList", self), nil
 		}},
 		{"StrMap", nil, "int", func(self any, _ []Value) (Value, error) {
-			return Int(int64(len(self.(*StrMap).keys))), nil
+			return Int(int64(self.(*StrMap).live)), nil
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []Value) (Value, error) {
 			_, ok := self.(*StrMap).values[a[0].Str]
@@ -278,14 +299,17 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		}},
 		{"StrMap", []string{"string", "string"}, "StrMap", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
-			if _, ok := m.values[a[0].Str]; !ok {
+			if _, ok := m.positions[a[0].Str]; !ok {
+				m.positions[a[0].Str] = len(m.keys)
 				m.keys = append(m.keys, a[0].Str)
+				m.live++
 			}
 			m.values[a[0].Str] = a[1].Str
 			return Object("StrMap", self), nil
 		}},
 		{"StrMap", []string{"int"}, "string", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
+			m.compact()
 			i, err := collectionIndex("StrMap", "key_at", a[0].Int, len(m.keys))
 			if err != nil {
 				return None(), err
@@ -294,22 +318,22 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
-			if _, ok := m.values[a[0].Str]; !ok {
+			i, ok := m.positions[a[0].Str]
+			if !ok {
 				return Bool(false), nil
 			}
 			delete(m.values, a[0].Str)
-			for i, k := range m.keys {
-				if k == a[0].Str {
-					m.keys = append(m.keys[:i], m.keys[i+1:]...)
-					break
-				}
-			}
+			delete(m.positions, a[0].Str)
+			m.deleted[i], m.live, m.dirty = true, m.live-1, true
 			return Bool(true), nil
 		}},
 		{"StrMap", nil, "StrMap", func(self any, _ []Value) (Value, error) {
 			m := self.(*StrMap)
 			clear(m.values)
 			m.keys = m.keys[:0]
+			clear(m.positions)
+			clear(m.deleted)
+			m.live, m.dirty = 0, false
 			return Object("StrMap", self), nil
 		}},
 	}
