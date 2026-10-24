@@ -81,7 +81,7 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Build and test
 
-Run the entire test suite (unit tests and all 50 conformance vectors):
+Run the entire test suite (unit tests and all 51 conformance vectors):
 
 ```sh
 go test ./...

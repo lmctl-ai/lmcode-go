@@ -2,7 +2,7 @@
 
 ## Test command
 
-Run all tests (unit tests and all 50 conformance vectors):
+Run all tests (unit tests and all 51 conformance vectors):
 
 ```sh
 go test -v ./...

@@ -172,6 +172,9 @@ func (s *Stub) initRegistry() {
 	_ = s.Reg.Function("fail", []string{"string"}, "void", func(args []lmcode.Value) (lmcode.Value, error) {
 		return lmcode.None(), lmcode.NewHostError(args[0].Str)
 	})
+	_ = s.Reg.Function("bad_int", nil, "int", func(args []lmcode.Value) (lmcode.Value, error) {
+		return lmcode.String("x"), nil
+	})
 }
 
 // TraceLineMatches checks whether an actual trace line matches the expected line,
