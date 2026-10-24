@@ -1,0 +1,6 @@
+out = ARGV.len() > 0 ? ARGV[0] : "greeter.dslb";
+chunk = _dsl_ schema="schema.json";
+g.say("Hello from Go DSL at " + now());
+end _dsl_
+savedsl(chunk, out);
+println(f"wrote {out}");

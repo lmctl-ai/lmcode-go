@@ -1,0 +1,29 @@
+{
+  "dsl.schema": 2,
+  "name": "greeter",
+  "context": {
+    "g": "Greeter"
+  },
+  "types": {
+    "Greeter": {
+      "methods": {
+        "say": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "void"
+          }
+        ]
+      }
+    }
+  },
+  "functions": {
+    "now": [
+      {
+        "params": [],
+        "returns": "string"
+      }
+    ]
+  }
+}

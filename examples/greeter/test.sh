@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -eu
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+cd "$ROOT"
+
+BIN="$ROOT/bin/greeter"
+CGO_ENABLED=0 go build -o "$BIN" ./examples/greeter
+if [ -f "$BIN.exe" ]; then
+  BIN="$BIN.exe"
+fi
+
+# Introspection signatures test
+diff -u <("$BIN" --dsl-signatures | tr -d '\r') <(
+  if command -v lmscript >/dev/null 2>&1; then
+    lmscript --dsl-signatures "$HERE/schema.json" | tr -d '\r'
+  else
+    printf "context g: Greeter\nfn now() -> string\nmethod Greeter.say(string) -> void\n"
+  fi
+)
+
+# Recompile if lmscript is available
+if command -v lmscript >/dev/null 2>&1; then
+  (cd "$HERE" && lmscript build.lms "$HERE/greeter.dslb")
+fi
+
+# Run greeter
+OUT="$("$BIN" "$HERE/greeter.dslb" "$HERE/schema.json" | tr -d '\r')"
+echo "greeter output: $OUT"
+[ "$OUT" = "Hello from Go DSL at 2026-10-24" ]
+echo "ok - greeter example"

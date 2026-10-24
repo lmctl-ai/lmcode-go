@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pins a copy of lmcode-cpp's conformance vectors (THE contract between runtimes) in conformance/vectors and records the SDK
+# commit plus a sha256 over every vector file in vectors.lock. `--verify` checks the copy against the lock (go test runs it),
+# so an edited or stale copy fails the tests. Source: the sibling checkout ../lmcode-cpp (override with LMCODE_CPP=path).
+set -eu
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SDK="${LMCODE_CPP:-$HERE/../lmcode-cpp}"; DST="$HERE/conformance/vectors"; LOCK="$HERE/vectors.lock"
+FIND="find"
+command -v /usr/bin/find >/dev/null 2>&1 && FIND="/usr/bin/find"
+SORT="sort"
+command -v /usr/bin/sort >/dev/null 2>&1 && SORT="/usr/bin/sort"
+digest() { (cd "$1" && $FIND . -type f | LC_ALL=C $SORT | xargs sha256sum | sha256sum | cut -c1-64); }
+if [ "${1:-}" = "--verify" ]; then
+  [ -f "$LOCK" ] || { echo "vectors.lock missing" >&2; exit 1; }
+  want="$(sed -n 's/^sha256=//p' "$LOCK")"; have="$(digest "$DST")"
+  [ "$want" = "$have" ] || { echo "conformance/vectors digest $have differs from vectors.lock $want: run scripts/sync-vectors.sh (or restore the pinned copy)" >&2; exit 1; }
+  echo "conformance/vectors matches vectors.lock ($(sed -n 's/^commit=//p' "$LOCK"))"; exit 0
+fi
+[ -d "$SDK/conformance/vectors" ] || { echo "lmcode-cpp checkout not found at $SDK (set LMCODE_CPP)" >&2; exit 1; }
+rm -rf "$DST"; mkdir -p "$DST"; cp "$SDK"/conformance/vectors/* "$DST"/
+printf 'repo=https://github.com/lmctl-ai/lmcode-cpp\ncommit=%s\nsha256=%s\n' "$(git -C "$SDK" rev-parse HEAD)" "$(digest "$DST")" >"$LOCK"
+echo "synced $(ls "$DST" | wc -l) files from lmcode-cpp $(git -C "$SDK" rev-parse --short HEAD)"
