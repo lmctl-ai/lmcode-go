@@ -309,12 +309,20 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		}},
 		{"StrMap", []string{"int"}, "string", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
-			m.compact()
-			i, err := collectionIndex("StrMap", "key_at", a[0].Int, len(m.keys))
-			if err != nil {
-				return None(), err
+			if a[0].Int < 0 || a[0].Int >= int64(m.live) {
+				return None(), NewHostError("StrMap.key_at: index out of range: " + formatInt(a[0].Int))
 			}
-			return Str(m.keys[i]), nil
+			seen := int64(0)
+			for i, key := range m.keys {
+				if m.deleted[i] {
+					continue
+				}
+				if seen == a[0].Int {
+					return Str(key), nil
+				}
+				seen++
+			}
+			return None(), NewHostError("StrMap.key_at: index out of range: " + formatInt(a[0].Int))
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
