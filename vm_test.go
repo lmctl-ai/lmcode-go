@@ -673,6 +673,28 @@ func TestRuntimeChecks(t *testing.T) {
 	assertError(t, "host error", run(newAsm().fn(boom, 0).halt()), "boom from the host")
 }
 
+func TestRuntimeErrorCodes(t *testing.T) {
+	h := newTestHost()
+
+	_, err := h.run(newAsm().pushInt(1).pushStr("x").u8(lmcode.OpEq).halt().file(schemaBytes))
+	lmErr, ok := err.(*lmcode.Error)
+	if !ok {
+		t.Fatalf("expected *lmcode.Error for VM type error, got %T", err)
+	}
+	if lmErr.Code != lmcode.RUN_ERROR {
+		t.Fatalf("VM type error code = %s, want %s", lmErr.Code, lmcode.RUN_ERROR)
+	}
+
+	_, err = h.run(newAsm().fn(boom, 0).halt().file(schemaBytes))
+	lmErr, ok = err.(*lmcode.Error)
+	if !ok {
+		t.Fatalf("expected *lmcode.Error for host callback error, got %T", err)
+	}
+	if lmErr.Code != lmcode.RUN_HOST {
+		t.Fatalf("host callback error code = %s, want %s", lmErr.Code, lmcode.RUN_HOST)
+	}
+}
+
 func TestSourceLineLocation(t *testing.T) {
 	h := newTestHost()
 
