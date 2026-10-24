@@ -113,8 +113,8 @@ func TestStdlibVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(names) < 18 {
-		t.Fatalf("expected at least 18 catalog vectors, got %d", len(names))
+	if len(names) < 29 {
+		t.Fatalf("expected at least 29 catalog vectors, got %d", len(names))
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {

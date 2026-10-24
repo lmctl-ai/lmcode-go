@@ -51,6 +51,9 @@ func (s *Stub) initRegistry() {
 	if err := stdlib.RegisterString(s.Reg); err != nil {
 		panic(err)
 	}
+	if err := stdlib.RegisterMath(s.Reg); err != nil {
+		panic(err)
+	}
 	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
 		raw, err := fixtureBytes(args[0].Str)
 		if err != nil {

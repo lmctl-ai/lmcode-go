@@ -78,9 +78,11 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 `stdlib/string.schema-fragment.json` into the host schema and call `stdlib.RegisterString(registry)`. The full 16-function C++ string catalog is available: `str_len`, `str_starts_with`, `str_ends_with`, `str_contains`, `str_find`, `str_substr`, `str_lower`, `str_upper`, `str_trim`, `str_repeat`, `str_to_int`, `str_is_int`, `str_to_float`, `str_is_float`, `str_replace`, and `str_match`. Strings are raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only. Repeat and replacement preflight a 64 MiB output cap, and glob matching uses a deterministic 2^27 work cap; policy failures return `RUN_HOST`. Signature parity with the compiler is checked by
 `go test ./stdlib/...` whenever `lmscript` (or `$LMSCRIPT_BIN`) is on PATH.
 
+The optional math catalog in `stdlib/math.schema-fragment.json` provides `math_abs`, `math_min`, `math_max`, `math_floor`, `math_ceil`, `math_round`, `math_pow`, and `math_sqrt`, each with `int` and `float` overloads. Integer arithmetic wraps at int64; negative integer exponents and square roots return `RUN_HOST`. Float operations preserve IEEE NaN, infinity, and signed-zero rules, with ties-away rounding.
+
 ## Build and test
 
-Run the entire test suite (unit tests, 51 core vectors and 18 optional string catalog vectors):
+Run the entire test suite (unit tests, 51 core vectors and 29 optional catalog vectors):
 
 ```sh
 go test ./...
