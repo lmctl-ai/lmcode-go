@@ -19,7 +19,7 @@ func canonicalSignatures(t *testing.T) []string {
 		t.Fatal(err)
 	}
 	var schema struct {
-		Std       int `json:"lmcode.std"`
+		Name      string `json:"name"`
 		Functions map[string][]struct {
 			Params  []string `json:"params"`
 			Returns string   `json:"returns"`
@@ -34,8 +34,8 @@ func canonicalSignatures(t *testing.T) []string {
 	if err := json.Unmarshal(data, &schema); err != nil {
 		t.Fatal(err)
 	}
-	if schema.Std != 1 {
-		t.Fatalf("canonical std version = %d, want 1", schema.Std)
+	if schema.Name != "lmcode_std_v1" {
+		t.Fatalf("canonical std name = %q, want lmcode_std_v1", schema.Name)
 	}
 	var out []string
 	for n, defs := range schema.Functions {

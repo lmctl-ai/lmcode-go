@@ -14,7 +14,7 @@ if [ "${1:-}" = "--verify" ]; then
 	exit 0
 fi
 	[ -d "$SDK/.git" ] || { echo "lmcode-cpp checkout not found at $SDK" >&2; exit 1; }
-	commit="$(git -C "$SDK" rev-parse HEAD)"
+	commit="$(git -C "$SDK" log -1 --format=%H -- std/lmcode-std.schema.json)"
 	git -C "$SDK" show "$commit:std/lmcode-std.schema.json" > "$DST"
 	digest="$(sha256sum "$DST" | cut -d' ' -f1)"
 	printf 'repo=https://github.com/lmctl-ai/lmcode-cpp\ncommit=%s\nsha256=%s\n' "$commit" "$digest" > "$LOCK"
