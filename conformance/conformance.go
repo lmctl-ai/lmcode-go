@@ -37,36 +37,42 @@ type Stub struct {
 }
 
 // NewStub creates a new Stub with the standard conformance methods and functions registered.
-func NewStub(catalog ...bool) *Stub {
-	useCatalog := len(catalog) > 0 && catalog[0]
+func NewStub(stdMode ...bool) *Stub {
+	useStd := len(stdMode) > 0 && stdMode[0]
 	s := &Stub{
 		Root:     &Thing{ID: 0},
 		Variable: &Thing{ID: 0},
 		Xs:       &IntList{Values: []int64{0, 1, 2, 3}},
-		Reg:      lmcode.NewRegistryWithoutStd(),
+		Reg: func() *lmcode.Registry {
+			if useStd {
+				return lmcode.NewRegistry()
+			}
+			return lmcode.NewRegistryWithoutStd()
+		}(),
 	}
-	s.initRegistry(useCatalog)
+	s.initRegistry(useStd)
 	return s
 }
 
-func (s *Stub) initRegistry(useCatalog bool) {
+func (s *Stub) initRegistry(useStd bool) {
 	// The catalog and fixture adapters are ordinary host callbacks, shared by both vector suites.
-	if err := stdlib.RegisterString(s.Reg); err != nil {
-		panic(err)
-	}
-	if err := stdlib.RegisterMath(s.Reg); err != nil {
-		panic(err)
-	}
-	if useCatalog {
-		if err := stdlib.RegisterCollections(s.Reg); err != nil {
-			panic(err)
-		}
-		if err := stdlib.RegisterTesting(s.Reg, &s.Output); err != nil {
+	if useStd {
+		if err := s.Reg.SetStdOutput(&s.Output); err != nil {
 			panic(err)
 		}
 		_ = s.Reg.Function("printed", nil, "string", func([]lmcode.Value) (lmcode.Value, error) {
 			return lmcode.String(s.Output.String()), nil
 		})
+		if len(s.Reg.StdSignatures()) != 69 {
+			panic(fmt.Sprintf("default std signature count = %d, want 69", len(s.Reg.StdSignatures())))
+		}
+	} else {
+		if err := stdlib.RegisterString(s.Reg); err != nil {
+			panic(err)
+		}
+		if err := stdlib.RegisterMath(s.Reg); err != nil {
+			panic(err)
+		}
 	}
 	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
 		raw, err := fixtureBytes(args[0].Str)
@@ -82,11 +88,11 @@ func (s *Stub) initRegistry(useCatalog bool) {
 	_ = s.Reg.Context("t", "Trace")
 	_ = s.Reg.Context("root", "Thing")
 	_ = s.Reg.Context("v", "Var")
-	if !useCatalog {
+	if !useStd {
 		_ = s.Reg.Context("xs", "IntList")
 	}
 
-	if !useCatalog {
+	if !useStd {
 		_ = s.Reg.Method("IntList", "len", nil, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
 			return lmcode.Int(int64(len(self.(*IntList).Values))), nil
 		})
@@ -338,8 +344,8 @@ func CheckVector(dir, name string) (string, error) {
 		return "", err
 	}
 
-	useCatalog := bytes.Contains(schema, []byte(`"str_list"`))
-	stub := NewStub(useCatalog)
+	stdMode := bytes.Contains(schema, []byte(`"str_len"`)) || bytes.Contains(schema, []byte(`"math_abs"`)) || bytes.Contains(schema, []byte(`"str_list"`)) || bytes.Contains(schema, []byte(`"print"`))
+	stub := NewStub(stdMode)
 	var runErr error
 	var loadErr error
 	loaded := false
@@ -354,7 +360,7 @@ func CheckVector(dir, name string) (string, error) {
 		ctx.Set("t", stub)
 		ctx.Set("root", stub.Root)
 		ctx.Set("v", stub.Variable)
-		if !useCatalog {
+		if !stdMode {
 			ctx.Set("xs", stub.Xs)
 		}
 		runErr = p.Run(ctx, stub.Reg)

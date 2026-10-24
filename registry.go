@@ -2,6 +2,8 @@ package lmcode
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -273,6 +275,27 @@ func (r *Registry) StdSignatures() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// SetStdOutput replaces the built-in print sink. Nil restores stdout.
+func (r *Registry) SetStdOutput(output io.Writer) error {
+	if !r.stdInstalled {
+		return NewError(LOAD_UNBOUND, "standard library is disabled")
+	}
+	if output == nil {
+		output = os.Stdout
+	}
+	e := r.FunctionBySignature("fn print(string) -> void")
+	if e == nil {
+		return NewError(LOAD_UNBOUND, "standard print is not registered")
+	}
+	e.Fn = func(args []Value) (Value, error) {
+		if _, err := io.WriteString(output, args[0].Str+"\n"); err != nil {
+			return None(), NewHostError(err.Error())
+		}
+		return None(), nil
+	}
+	return nil
 }
 
 // CheckSchemaSignatures checks the host declarations plus enabled built-ins against a schema signature set.
