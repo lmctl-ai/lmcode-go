@@ -69,6 +69,9 @@ func formatInt(v int64) string { return strconv.FormatInt(v, 10) }
 // RegisterCollections registers the byte-oriented list and map catalog.
 // Each registration owns a 65536-object arena captured by its callbacks.
 func RegisterCollections(r *Registry, arenas ...*Collections) error {
+	if len(arenas) > 0 && arenas[0] != nil && r.stdCollections == nil {
+		r.explicitCollections = true
+	}
 	arena := NewCollections()
 	if len(arenas) > 0 && arenas[0] != nil {
 		arena = arenas[0]

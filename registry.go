@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Signature describes the parameter type names and return type name of a function or method.
@@ -67,18 +68,21 @@ func (c *Context) Get(name string) any {
 
 // Registry declares the schema's types, context objects, methods, and functions.
 type Registry struct {
-	functions        map[string]*FunctionEntry // canonical signature -> entry
-	methods          map[string]*MethodEntry   // canonical signature -> entry
-	contexts         map[string]string         // name -> schema type name
-	builtinFunctions map[string]bool
-	builtinMethods   map[string]bool
-	stdSignatures    map[string]bool
-	stdInstalled     bool
-	stdCollections   *Collections
-	runDepth         int
+	functions           map[string]*FunctionEntry // canonical signature -> entry
+	methods             map[string]*MethodEntry   // canonical signature -> entry
+	contexts            map[string]string         // name -> schema type name
+	builtinFunctions    map[string]bool
+	builtinMethods      map[string]bool
+	stdSignatures       map[string]bool
+	stdInstalled        bool
+	stdCollections      *Collections
+	explicitCollections bool
+	runState            *registryRunState
 }
 
-// NewRegistry creates an empty Registry.
+type registryRunState struct{ mu sync.Mutex }
+
+// NewRegistry creates a Registry with the canonical standard catalog enabled.
 func NewRegistry() *Registry {
 	r := &Registry{
 		functions:        make(map[string]*FunctionEntry),
@@ -87,6 +91,7 @@ func NewRegistry() *Registry {
 		builtinFunctions: make(map[string]bool),
 		builtinMethods:   make(map[string]bool),
 		stdSignatures:    make(map[string]bool),
+		runState:         &registryRunState{},
 	}
 	_ = RegisterStd(r)
 	return r
@@ -94,7 +99,7 @@ func NewRegistry() *Registry {
 
 // NewRegistryWithoutStd creates an empty registry for legacy or custom hosts.
 func NewRegistryWithoutStd() *Registry {
-	return &Registry{functions: make(map[string]*FunctionEntry), methods: make(map[string]*MethodEntry), contexts: make(map[string]string), builtinFunctions: make(map[string]bool), builtinMethods: make(map[string]bool), stdSignatures: make(map[string]bool)}
+	return &Registry{functions: make(map[string]*FunctionEntry), methods: make(map[string]*MethodEntry), contexts: make(map[string]string), builtinFunctions: make(map[string]bool), builtinMethods: make(map[string]bool), stdSignatures: make(map[string]bool), runState: &registryRunState{}}
 }
 
 // Context declares a context variable name and its schema type.
@@ -192,8 +197,14 @@ func RegisterStd(r *Registry) error {
 	if err := RegisterStdMath(r); err != nil {
 		return err
 	}
-	r.stdCollections = NewCollections()
-	if err := RegisterCollections(r, r.stdCollections); err != nil {
+	if !r.explicitCollections && r.stdCollections == nil {
+		r.stdCollections = NewCollections()
+	}
+	if r.stdCollections != nil {
+		if err := RegisterCollections(r, r.stdCollections); err != nil {
+			return err
+		}
+	} else if err := RegisterCollections(r); err != nil {
 		return err
 	}
 	if err := RegisterTesting(r, nil); err != nil {
@@ -216,22 +227,24 @@ func RegisterStd(r *Registry) error {
 }
 
 func (r *Registry) beginRun() error {
-	if r.runDepth != 0 {
+	if r.runState == nil {
+		r.runState = &registryRunState{}
+	}
+	if !r.runState.mu.TryLock() {
 		return NewHostError("registry run already active")
 	}
 	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
-	r.runDepth = 1
 	return nil
 }
 
 func (r *Registry) endRun() {
-	if r.runDepth > 0 {
-		r.runDepth = 0
-		if r.stdCollections != nil {
-			r.stdCollections.Reset()
-		}
+	if r.stdCollections != nil {
+		r.stdCollections.Reset()
+	}
+	if r.runState != nil {
+		r.runState.mu.Unlock()
 	}
 }
 

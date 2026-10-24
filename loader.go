@@ -53,6 +53,7 @@ type Program struct {
 	code     []byte
 	lines    []Line
 	loops    map[int]loopInfo // FOR_NEXT pc -> loopInfo
+	registry *Registry
 }
 
 // ConstantCount returns the number of constant pool entries.
@@ -227,7 +228,8 @@ func LoadProgram(bytecode, schemaBytes []byte, reg *Registry) (*Program, error) 
 	}
 
 	p := &Program{
-		loops: make(map[int]loopInfo),
+		loops:    make(map[int]loopInfo),
+		registry: reg,
 	}
 
 	for i := uint32(0); i < nconst; i++ {

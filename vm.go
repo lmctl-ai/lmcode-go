@@ -142,14 +142,21 @@ func intFromFloat(x float64) int64 {
 	return int64(x)
 }
 
-// Run executes the loaded program once with the provided context and registry.
+// Run executes the loaded program once. The registry that bound the program at
+// Load time owns callbacks and run state; the argument is retained for legacy
+// callers and is used only for programs constructed without a bound registry.
 func (p *Program) Run(ctx *Context, reg *Registry, stats ...*RunStats) error {
-	if reg != nil {
-		if err := reg.beginRun(); err != nil {
+	boundReg := p.registry
+	if boundReg == nil {
+		boundReg = reg
+	}
+	if boundReg != nil {
+		if err := boundReg.beginRun(); err != nil {
 			return err
 		}
-		defer reg.endRun()
+		defer boundReg.endRun()
 	}
+	reg = boundReg
 	stack := make([]Value, 0, p.maxStack)
 	locals := make([]Value, len(p.locals))
 
