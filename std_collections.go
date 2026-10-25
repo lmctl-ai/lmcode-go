@@ -79,7 +79,7 @@ func (m *StrMap) compact() {
 	m.keys, m.positions, m.deleted, m.dirty = keys, positions, make(map[int]bool), false
 	m.fenwick = make([]int, len(keys)+1)
 	for i := range keys {
-		m.fenwickAdd(i+1, 1)
+		m.fenwick[i+1] = (i + 1) & -(i + 1)
 	}
 }
 
@@ -334,6 +334,9 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		}},
 		{"StrMap", []string{"string", "string"}, "StrMap", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
+			if m.dirty && len(m.keys) > 2*m.live+1024 {
+				m.compact()
+			}
 			if _, ok := m.positions[a[0].Str]; !ok {
 				m.positions[a[0].Str] = len(m.keys)
 				m.keys = append(m.keys, a[0].Str)

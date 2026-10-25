@@ -265,6 +265,18 @@ func TestStrMapBulkRemovalKeepsInsertionOrder(t *testing.T) {
 			t.Fatalf("key_at(%d) = %q, %v", i, got.Str, err)
 		}
 	}
+	for i := 0; i < 5000; i++ {
+		if _, err := remove.Fn(mapValue, []lmcode.Value{lmcode.Str(fmt.Sprintf("k%d", i*2+1))}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := set.Fn(mapValue, []lmcode.Value{lmcode.Str("reinserted"), lmcode.Str("v")}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := keyAt.Fn(mapValue, []lmcode.Value{lmcode.Int(0)})
+	if err != nil || got.Str != "reinserted" {
+		t.Fatalf("reinserted map first key = %q, %v", got.Str, err)
+	}
 }
 
 func collectionFnErr(t *testing.T, r *lmcode.Registry, sig string, args ...lmcode.Value) (lmcode.Value, error) {
