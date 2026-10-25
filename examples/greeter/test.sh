@@ -12,9 +12,11 @@ fi
 
 # Introspection host signatures test. The default registry also contains the
 # canonical std surface, so compare the host-only view to the host schema.
+# lmscript 0.2.420 builds std into every schema; --without-std isolates the
+# host-declared surface.
 diff -u <("$BIN" --host-signatures | tr -d '\r') <(
   if command -v lmscript >/dev/null 2>&1; then
-    lmscript --dsl-signatures "$HERE/schema.json" | tr -d '\r'
+    lmscript --dsl-signatures "$HERE/schema.json" --without-std | tr -d '\r'
   else
     printf "context g: Greeter\nfn now() -> string\nmethod Greeter.say(string) -> void\n"
   fi

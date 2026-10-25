@@ -257,7 +257,9 @@ func TestCompilerSignaturesParity(t *testing.T) {
 	compilerSigs = append(compilerSigs, rawLines...)
 	sort.Strings(compilerSigs)
 
-	reg := lmcode.NewRegistryWithoutStd()
+	// lmscript 0.2.420 builds the std catalog into every schema, so the
+	// compiler reports the full std surface; compare against a std registry.
+	reg := lmcode.NewRegistry()
 	if err := stdlib.RegisterString(reg); err != nil {
 		t.Fatalf("RegisterString: %v", err)
 	}

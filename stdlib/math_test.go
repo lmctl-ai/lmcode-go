@@ -145,7 +145,13 @@ func TestMathCompilerSignatureParity(t *testing.T) {
 	// Signatures contain spaces, so split output by lines rather than fields.
 	lines = strings.Split(strings.TrimSpace(string(out)), "\n")
 	sort.Strings(lines)
-	if !reflect.DeepEqual(lines, expected) {
-		t.Fatalf("compiler signatures = %v, want %v", lines, expected)
+	// lmscript 0.2.420 builds the std catalog into every schema, so the
+	// compiler reports the full std surface; compare against a std registry.
+	full := lmcode.NewRegistry()
+	if err := stdlib.RegisterMath(full); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(lines, full.Signatures()) {
+		t.Fatalf("compiler signatures = %v, want %v", lines, full.Signatures())
 	}
 }

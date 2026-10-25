@@ -62,7 +62,13 @@ func TestCollectionsFragmentParity(t *testing.T) {
 	if got := r.Signatures(); !equalStrings(got, want) {
 		t.Fatalf("collection signatures = %v, want %v", got, want)
 	}
-	assertCompilerParity(t, r, "collections.schema-fragment.json")
+	// lmscript 0.2.420 builds the std catalog into every schema, so the
+	// compiler reports the full std surface; compare against a std registry.
+	full := lmcode.NewRegistry()
+	if err := stdlib.RegisterCollections(full); err != nil {
+		t.Fatal(err)
+	}
+	assertCompilerParity(t, full, "collections.schema-fragment.json")
 }
 
 func TestTestingFragmentParity(t *testing.T) {
@@ -74,7 +80,11 @@ func TestTestingFragmentParity(t *testing.T) {
 	if got := r.Signatures(); !equalStrings(got, want) {
 		t.Fatalf("testing signatures = %v, want %v", got, want)
 	}
-	assertCompilerParity(t, r, "testing.schema-fragment.json")
+	full := lmcode.NewRegistry()
+	if err := stdlib.RegisterTesting(full, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertCompilerParity(t, full, "testing.schema-fragment.json")
 }
 
 func assertCompilerParity(t *testing.T, registry *lmcode.Registry, fragmentPath string) {
