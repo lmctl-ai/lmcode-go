@@ -38,6 +38,7 @@ type StrMap struct {
 	deleted   map[int]bool
 	live      int
 	dirty     bool
+	fenwick   []int
 }
 
 // Values returns a snapshot of the list's current byte strings.
@@ -76,6 +77,40 @@ func (m *StrMap) compact() {
 		keys = append(keys, key)
 	}
 	m.keys, m.positions, m.deleted, m.dirty = keys, positions, make(map[int]bool), false
+	m.fenwick = make([]int, len(keys)+1)
+	for i := range keys {
+		m.fenwickAdd(i+1, 1)
+	}
+}
+
+func (m *StrMap) fenwickPrefix(index int) int {
+	total := 0
+	for index > 0 {
+		total += m.fenwick[index]
+		index -= index & -index
+	}
+	return total
+}
+
+func (m *StrMap) fenwickAdd(index, delta int) {
+	for index < len(m.fenwick) {
+		m.fenwick[index] += delta
+		index += index & -index
+	}
+}
+func (m *StrMap) fenwickSelect(target int) int {
+	index, bit := 0, 1
+	for bit<<1 < len(m.fenwick) {
+		bit <<= 1
+	}
+	for bit > 0 {
+		next := index + bit
+		if next < len(m.fenwick) && m.fenwick[next] < target {
+			index, target = next, target-m.fenwick[next]
+		}
+		bit >>= 1
+	}
+	return index
 }
 
 func collectionIndex(typeName, method string, index int64, length int) (int, error) {
@@ -117,7 +152,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		return err
 	}
 	if err := add("str_map", nil, "StrMap", func([]Value) (Value, error) {
-		return arena.object("StrMap", &StrMap{values: make(map[string]string), positions: make(map[string]int), deleted: make(map[int]bool)})
+		return arena.object("StrMap", &StrMap{values: make(map[string]string), positions: make(map[string]int), deleted: make(map[int]bool), fenwick: []int{0}})
 	}); err != nil {
 		return err
 	}
@@ -302,6 +337,8 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			if _, ok := m.positions[a[0].Str]; !ok {
 				m.positions[a[0].Str] = len(m.keys)
 				m.keys = append(m.keys, a[0].Str)
+				index := len(m.keys)
+				m.fenwick = append(m.fenwick, m.fenwickPrefix(index-1)-m.fenwickPrefix(index-(index&-index))+1)
 				m.live++
 			}
 			m.values[a[0].Str] = a[1].Str
@@ -312,17 +349,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			if a[0].Int < 0 || a[0].Int >= int64(m.live) {
 				return None(), NewHostError("StrMap.key_at: index out of range: " + formatInt(a[0].Int))
 			}
-			seen := int64(0)
-			for i, key := range m.keys {
-				if m.deleted[i] {
-					continue
-				}
-				if seen == a[0].Int {
-					return Str(key), nil
-				}
-				seen++
-			}
-			return None(), NewHostError("StrMap.key_at: index out of range: " + formatInt(a[0].Int))
+			return Str(m.keys[m.fenwickSelect(int(a[0].Int)+1)]), nil
 		}},
 		{"StrMap", []string{"string"}, "bool", func(self any, a []Value) (Value, error) {
 			m := self.(*StrMap)
@@ -333,6 +360,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			delete(m.values, a[0].Str)
 			delete(m.positions, a[0].Str)
 			m.deleted[i], m.live, m.dirty = true, m.live-1, true
+			m.fenwickAdd(i+1, -1)
 			return Bool(true), nil
 		}},
 		{"StrMap", nil, "StrMap", func(self any, _ []Value) (Value, error) {
@@ -341,7 +369,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			m.keys = m.keys[:0]
 			clear(m.positions)
 			clear(m.deleted)
-			m.live, m.dirty = 0, false
+			m.live, m.dirty, m.fenwick = 0, false, []int{0}
 			return Object("StrMap", self), nil
 		}},
 	}
