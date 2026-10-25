@@ -114,8 +114,8 @@ func TestAllCatalogVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VectorNames(%s): %v", dir, err)
 	}
-	if len(names) < 61 {
-		t.Fatalf("expected at least 61 catalog vectors, got %d", len(names))
+	if len(names) < 118 {
+		t.Fatalf("expected at least 118 catalog vectors, got %d", len(names))
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {

@@ -398,6 +398,20 @@ func CheckVector(dir, name string) (string, error) {
 		}
 	}
 
+	if os.Getenv("LMCODE_TRACE") != "" {
+		for _, line := range stub.Trace {
+			fmt.Printf("TRACE\t%s\t%s\n", name, line)
+		}
+		if e, yes := runErr.(*lmcode.Error); yes {
+			message := e.Message
+			if e.HasColumn {
+				message = strings.TrimPrefix(message, fmt.Sprintf("dsl line %d:%d: ", e.Line, e.Column))
+			} else if e.HasLocation {
+				message = strings.TrimPrefix(message, fmt.Sprintf("dsl line %d: ", e.Line))
+			}
+			fmt.Printf("ERROR\t%s\t%s\t%s\n", name, e.Code, message)
+		}
+	}
 	ok := false
 	switch expect.Kind {
 	case "trace":
