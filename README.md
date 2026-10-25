@@ -21,12 +21,12 @@ SHA-256 binding).
 
 | **Bytecode Conformance Suite** | **Unit Tests & Invariants** |
 | --- | --- |
-| <img src="docs/images/conformance.png" width="440"> | <img src="docs/images/unit-tests.png" width="440"> |
+| <img src="docs/images/conformance.png" width="440" alt="Bytecode Conformance Suite"> | <img src="docs/images/unit-tests.png" width="440" alt="Unit Tests & Invariants"> |
 | All 51 core bytecode vectors pass across opcodes, types, error paths, and control flow.<br>`go run ./cmd/conformance conformance/vectors` | Unit tests covering VM type invariants, line tables, and registry semantics.<br>`go test -v .` |
 
 | **Greeter Example Host** | **Same Bytecode, Four Runtimes** |
 | --- | --- |
-| <img src="docs/images/greeter-example.png" width="440"> | <img src="docs/images/same-bytecode-four-runtimes.png" width="440"> |
+| <img src="docs/images/greeter-example.png" width="440" alt="Greeter Example Host"> | <img src="docs/images/same-bytecode-four-runtimes.png" width="440" alt="Same Bytecode, Four Runtimes"> |
 | Minimal embedding host compiling and executing DSL logic in pure Go.<br>`lmscript examples/greeter/build.lms && ./bin/greeter greeter.dslb` | Cross-language parity: C++, Rust, Go, and C# run the exact same bytecode.<br>`PASS 51/51 vectors across 4 runtimes` |
 
 ## Embedding it in twenty lines
