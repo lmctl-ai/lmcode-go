@@ -86,8 +86,14 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Standard library catalog
 
-`NewRegistry()` installs lmcode std automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package retains explicit group binders for opt-out and compatibility use. Until compiler injection lands, merge `std/lmcode-std.schema.json` into the build's compiler schema with the shared `lmcode-cpp/scripts/merge-std.py` helper and embed the exact resulting bytes. The full 16-function C++ string catalog is available: `str_len`, `str_starts_with`, `str_ends_with`, `str_contains`, `str_find`, `str_substr`, `str_lower`, `str_upper`, `str_trim`, `str_repeat`, `str_to_int`, `str_is_int`, `str_to_float`, `str_is_float`, `str_replace`, and `str_match`. Strings are raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only. Repeat and replacement preflight a 64 MiB output cap, and glob matching uses a deterministic 2^27 work cap; policy failures return `RUN_HOST`. Signature parity with the compiler is checked by
-`go test ./stdlib/...` whenever `lmscript` (or `$LMSCRIPT_BIN`) is on PATH.
+`NewRegistry()` installs the canonical lmcode std v2 catalog (171 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v2 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
+
+The original string, math, collection, and file contracts remain. V2 adds typed insertion-ordered `IntMap`/`FloatMap`; Int/Float/Str stacks and queues; stable min-first priority queues with insertion-order ties and signed-zero priority equality; and immutable `Json` values created by strict `json_parse`. JSON preserves number/string token spelling and object order in `to_json`, rejects malformed UTF-8/duplicate decoded keys/nonfinite numbers/depth over 256, and uses the shared 65,536-object run arena. Containers use the same arena and retain the documented bounds/empty errors. Strings remain raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only.
+
+Published lmscript `0.2.426` still reports 72 default signatures for an empty host. Its explicit schema path can inspect all 171 v2 declarations; the default-builtin parity probe is run against a scratch build of lmctl-mono main until a v2 compiler bundle is published. The Go tests compare the v2 schema with the registry in all environments and skip only that default-bundle probe when the compiler reports the legacy 72-signature catalog.
+
+The detailed Go v2 semantics and verification record are in
+[durable-memory/06-stdlib-catalog.md](durable-memory/06-stdlib-catalog.md).
 
 The built-in math catalog, also described by the compatibility fragment `stdlib/math.schema-fragment.json` provides `math_abs`, `math_min`, `math_max`, `math_floor`, `math_ceil`, `math_round`, `math_pow`, and `math_sqrt`, each with `int` and `float` overloads. Integer arithmetic wraps at int64; negative integer exponents and square roots return `RUN_HOST`. Float operations preserve IEEE NaN, infinity, and signed-zero rules, with ties-away rounding.
 
@@ -95,11 +101,11 @@ The collections and testing catalogs are declared in `stdlib/collections.schema-
 
 Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
 
-The root `lmcode` package owns the canonical 72-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
+The root `lmcode` package owns the canonical 171-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
 
 ## Build and test
 
-Run the entire test suite (unit tests, 51 core vectors and 61 optional catalog vectors):
+Run the entire test suite (unit tests, 51 core vectors and 229 stdlib vectors):
 
 ```sh
 go test ./...
@@ -110,6 +116,8 @@ Run the standalone conformance runner:
 ```sh
 go run ./cmd/conformance ./conformance/vectors
 go run ./cmd/conformance ./conformance/stdlib-vectors
+bash scripts/sync-std.sh --verify
+bash scripts/sync-vectors.sh --verify
 ```
 
 Build the static example host:
@@ -130,7 +138,7 @@ The same bytecode v5 and the same conformance vectors are implemented by:
 
 MIT License. Copyright (c) 2026 Lattice Systems LLC.
 
-Built-in std has four areas: strings, math, collections, and files. `file_read`,
+Built-in std has string, math, collections, file, containers, and JSON APIs. `file_read`,
 `file_write` (create/truncate), and `file_append` preserve every content byte.
 `file_exists` is true only for regular files; missing paths and directories are
 false. `file_lines` splits LF bytes into an arena-owned StrList, preserving CR
