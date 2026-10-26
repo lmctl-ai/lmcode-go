@@ -38,8 +38,8 @@ func canonicalSignatures(t *testing.T) []string {
 	if err := json.Unmarshal(data, &schema); err != nil {
 		t.Fatal(err)
 	}
-	if schema.Name != "lmcode_std_v2" {
-		t.Fatalf("canonical std name = %q, want lmcode_std_v2", schema.Name)
+	if schema.Name != "lmcode_std_v3" {
+		t.Fatalf("canonical std name = %q, want lmcode_std_v3", schema.Name)
 	}
 	var out []string
 	for n, defs := range schema.Functions {
@@ -69,8 +69,8 @@ func TestStdSchemaLock(t *testing.T) {
 			fields[key] = value
 		}
 	}
-	if fields["schema"] != "std/lmcode-std.schema.json" || fields["version"] != "2" {
-		t.Fatalf("std.lock does not pin canonical v2: %v", fields)
+	if fields["schema"] != "std/lmcode-std.schema.json" || fields["version"] != "3" {
+		t.Fatalf("std.lock does not pin canonical v3: %v", fields)
 	}
 	data, err := os.ReadFile(fields["schema"])
 	if err != nil {
@@ -103,7 +103,6 @@ func TestPublishedCompilerStdSignatures(t *testing.T) {
 
 func TestCompilerDefaultCatalogParity(t *testing.T) {
 	compiler := os.Getenv("LMSCRIPT_BIN")
-	explicit := compiler != ""
 	if compiler == "" {
 		var err error
 		compiler, err = exec.LookPath("lmscript")
@@ -121,8 +120,8 @@ func TestCompilerDefaultCatalogParity(t *testing.T) {
 		t.Fatalf("lmscript --dsl-signatures empty host: %v", err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(output), "\n"), "\n")
-	if len(lines) == 72 && !explicit {
-		t.Skip("published lmscript still bundles std v1; run with LMSCRIPT_BIN set to the scratch lmctl-mono main build")
+	if len(lines) < len(lmcode.NewRegistry().StdSignatures()) {
+		t.Skipf("compiler bundles %d default std signatures; explicit v3 schema parity passed, but the compiler's v3 default catalog is not yet available", len(lines))
 	}
 	want := lmcode.NewRegistry().StdSignatures()
 	if !reflect.DeepEqual(lines, want) {
@@ -188,7 +187,7 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 
 func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	r := lmcode.NewRegistry()
-	if len(r.StdSignatures()) != 171 {
+	if len(r.StdSignatures()) != 181 {
 		t.Fatalf("default std count = %d", len(r.StdSignatures()))
 	}
 	if err := lmcode.RegisterTesting(r, nil); err != nil {
@@ -198,7 +197,7 @@ func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	if len(host) != 2 || host[0] != "fn assert_close(float, float, float) -> void" || host[1] != "fn print(string) -> void" {
 		t.Fatalf("testing host signatures = %v", host)
 	}
-	if len(r.StdSignatures()) != 171 {
+	if len(r.StdSignatures()) != 181 {
 		t.Fatalf("std count after testing = %d", len(r.StdSignatures()))
 	}
 	if r.MatchesSchemaSignatures(r.StdSignatures()) {

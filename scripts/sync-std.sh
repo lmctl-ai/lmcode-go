@@ -11,7 +11,7 @@ if [ "${1:-}" = "--verify" ]; then
 	version="$(sed -n 's/^version=//p' "$LOCK")"
 	want="$(sed -n 's/^sha256=//p' "$LOCK")"
 	have="$(sha256sum "$DST" | cut -d' ' -f1)"
-	[ "$schema" = "std/lmcode-std.schema.json" ] && [ "$version" = "2" ] || { echo "std.lock is not the v2 canonical lock" >&2; exit 1; }
+	[ "$schema" = "std/lmcode-std.schema.json" ] && [ "$version" = "3" ] || { echo "std.lock is not the v3 canonical lock" >&2; exit 1; }
 	[ "$want" = "$have" ] || { echo "std schema digest differs from std.lock" >&2; exit 1; }
 	echo "std v$version schema matches std.lock"
 	exit 0

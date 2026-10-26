@@ -86,13 +86,13 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Standard library catalog
 
-`NewRegistry()` installs the canonical lmcode std v2 catalog (171 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v2 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
+`NewRegistry()` installs the canonical lmcode std v3 catalog (181 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v3 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
 
-The original string, math, collection, and file contracts remain. V2 adds typed insertion-ordered `IntMap`/`FloatMap`; Int/Float/Str stacks and queues; stable min-first priority queues with insertion-order ties and signed-zero priority equality; and immutable `Json` values created by strict `json_parse`. JSON preserves number/string token spelling and object order in `to_json`, rejects malformed UTF-8/duplicate decoded keys/nonfinite numbers/depth over 256, and uses the shared 65,536-object run arena. Containers use the same arena and retain the documented bounds/empty errors. Strings remain raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only.
+The original string, math, collection, and file contracts remain. V2 added typed insertion-ordered `IntMap`/`FloatMap`; Int/Float/Str stacks and queues; stable min-first priority queues with insertion-order ties and signed-zero priority equality; and immutable `Json` values created by strict `json_parse`. V3 adds strict Base64/hex byte codecs and independent insertion-order `keys()`/`values()` snapshots on all three maps. JSON preserves number/string token spelling and object order in `to_json`, rejects malformed UTF-8/duplicate decoded keys/nonfinite numbers/depth over 256, and uses the shared 65,536-object run arena. Containers use the same arena and retain the documented bounds/empty errors. Strings remain raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only.
 
-Published lmscript `0.2.426` still reports 72 default signatures for an empty host. Its explicit schema path can inspect all 171 v2 declarations; the default-builtin parity probe is run against a scratch build of lmctl-mono main until a v2 compiler bundle is published. The Go tests compare the v2 schema with the registry in all environments and skip only that default-bundle probe when the compiler reports the legacy 72-signature catalog.
+Published lmscript `0.2.426` reports 72 default signatures for an empty host. The scratch build of lmctl-mono main at `fa04890c` reports 171 defaults, while its explicit schema path recognizes all 181 v3 declarations. The Go tests verify explicit compiler/schema parity and the registry against the v3 schema; they skip the default-catalog parity probe until lmctl-mono registers all 181 defaults.
 
-The detailed Go v2 semantics and verification record are in
+The detailed Go v3 semantics and verification record are in
 [durable-memory/06-stdlib-catalog.md](durable-memory/06-stdlib-catalog.md).
 
 The built-in math catalog, also described by the compatibility fragment `stdlib/math.schema-fragment.json` provides `math_abs`, `math_min`, `math_max`, `math_floor`, `math_ceil`, `math_round`, `math_pow`, and `math_sqrt`, each with `int` and `float` overloads. Integer arithmetic wraps at int64; negative integer exponents and square roots return `RUN_HOST`. Float operations preserve IEEE NaN, infinity, and signed-zero rules, with ties-away rounding.
@@ -101,11 +101,11 @@ The collections and testing catalogs are declared in `stdlib/collections.schema-
 
 Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
 
-The root `lmcode` package owns the canonical 171-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
+The root `lmcode` package owns the canonical 181-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
 
 ## Build and test
 
-Run the entire test suite (unit tests, 51 core vectors and 229 stdlib vectors):
+Run the entire test suite (unit tests, 51 core vectors and 267 stdlib vectors):
 
 ```sh
 go test ./...

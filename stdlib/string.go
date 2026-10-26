@@ -2,6 +2,11 @@ package stdlib
 
 import lmcode "github.com/lmctl-ai/lmcode-go"
 
+func StrBase64Encode(s string) string          { return lmcode.StrBase64Encode(s) }
+func StrBase64Decode(s string) (string, error) { return lmcode.StrBase64Decode(s) }
+func StrHexEncode(s string) string             { return lmcode.StrHexEncode(s) }
+func StrHexDecode(s string) (string, error)    { return lmcode.StrHexDecode(s) }
+
 func StrLen(s string) int64                         { return lmcode.StrLen(s) }
 func StrStartsWith(s, p string) bool                { return lmcode.StrStartsWith(s, p) }
 func StrEndsWith(s, p string) bool                  { return lmcode.StrEndsWith(s, p) }

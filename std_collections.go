@@ -171,7 +171,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		"len", "at", "add", "set", "contains", "index_of", "join", "clear",
 		"len", "at", "add", "set", "contains", "index_of", "clear",
 		"len", "at", "add", "set", "contains", "index_of", "clear",
-		"len", "has", "get", "get_or", "set", "key_at", "remove", "clear",
+		"len", "has", "get", "get_or", "set", "key_at", "remove", "clear", "keys", "values",
 	}
 	methods := []struct {
 		typeName string
@@ -374,6 +374,20 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 			clear(m.deleted)
 			m.live, m.dirty, m.fenwick = 0, false, []int{0}
 			return Object("StrMap", self), nil
+		}},
+		{"StrMap", nil, "StrList", func(self any, _ []Value) (Value, error) {
+			m := self.(*StrMap)
+			m.compact()
+			return arena.object("StrList", &StrList{values: append([]string(nil), m.keys...)})
+		}},
+		{"StrMap", nil, "StrList", func(self any, _ []Value) (Value, error) {
+			m := self.(*StrMap)
+			m.compact()
+			values := make([]string, len(m.keys))
+			for i, key := range m.keys {
+				values[i] = m.values[key]
+			}
+			return arena.object("StrList", &StrList{values: values})
 		}},
 	}
 	for i, e := range methods {

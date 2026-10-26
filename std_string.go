@@ -1,6 +1,8 @@
 package lmcode
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"math"
 	"strconv"
 	"strings"
@@ -10,6 +12,39 @@ const maxBytes = 64 * 1024 * 1024
 
 // StrLen returns the byte length, including NUL and invalid UTF-8 bytes.
 func StrLen(s string) int64 { return int64(len(s)) }
+
+// StrBase64Encode returns canonical padded RFC 4648 encoding of raw bytes.
+func StrBase64Encode(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+// StrBase64Decode accepts only canonical padded RFC 4648 input.
+func StrBase64Decode(s string) (string, error) {
+	for i := range s {
+		c := s[i]
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '+' || c == '/' || c == '=') {
+			return "", NewHostError("str_base64_decode: invalid encoding")
+		}
+	}
+	b, err := base64.StdEncoding.Strict().DecodeString(s)
+	if err != nil || base64.StdEncoding.EncodeToString(b) != s {
+		return "", NewHostError("str_base64_decode: invalid encoding")
+	}
+	return string(b), nil
+}
+
+// StrHexEncode returns lowercase hexadecimal for raw bytes.
+func StrHexEncode(s string) string { return hex.EncodeToString([]byte(s)) }
+
+// StrHexDecode decodes an even number of ASCII hexadecimal digits.
+func StrHexDecode(s string) (string, error) {
+	if len(s)%2 != 0 {
+		return "", NewHostError("str_hex_decode: invalid encoding")
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return "", NewHostError("str_hex_decode: invalid encoding")
+	}
+	return string(b), nil
+}
 
 // StrStartsWith tests a byte prefix; an empty prefix matches.
 func StrStartsWith(s, p string) bool { return strings.HasPrefix(s, p) }
@@ -302,13 +337,29 @@ func StrMatch(text, pattern string) (bool, error) {
 	return p == len(pattern), nil
 }
 
-// RegisterString binds the 16 optional C++ string catalog functions. Register once per registry.
+// RegisterString binds the optional byte string and encoding catalog functions.
 func RegisterString(r *Registry) error {
 	entries := []struct {
 		n, t string
 		p    []string
 		f    Function
 	}{
+		{"str_base64_encode", "string", []string{"string"}, func(a []Value) (Value, error) { return String(StrBase64Encode(a[0].Str)), nil }},
+		{"str_base64_decode", "string", []string{"string"}, func(a []Value) (Value, error) {
+			v, e := StrBase64Decode(a[0].Str)
+			if e != nil {
+				return None(), e
+			}
+			return String(v), nil
+		}},
+		{"str_hex_encode", "string", []string{"string"}, func(a []Value) (Value, error) { return String(StrHexEncode(a[0].Str)), nil }},
+		{"str_hex_decode", "string", []string{"string"}, func(a []Value) (Value, error) {
+			v, e := StrHexDecode(a[0].Str)
+			if e != nil {
+				return None(), e
+			}
+			return String(v), nil
+		}},
 		{"str_starts_with", "bool", []string{"string", "string"}, func(a []Value) (Value, error) {
 			return Bool(StrStartsWith(a[0].Str, a[1].Str)), nil
 		}},

@@ -2,7 +2,7 @@
 
 ## Test command
 
-Run all tests (unit tests, 51 core vectors and 229 stdlib v2 vectors):
+Run all tests (unit tests, 51 core vectors and 267 stdlib v3 vectors):
 
 ```sh
 go test -v ./...
@@ -48,11 +48,11 @@ bash examples/greeter/test.sh
 
 ## Catalog and fixture validation
 
-`go test ./...` checks the canonical 171-signature registry, exact `std.lock` bytes, schema-fragment compatibility binders, all 51 core vectors, and all 229 v2 stdlib vectors. It compares the full schema signature list with `lmscript --dsl-signatures`. Published lmscript 0.2.426 still bundles the legacy 72 default signatures; the empty-host 171-signature default-bundle probe skips that compiler and must be run with `LMSCRIPT_BIN` set to a scratch build of lmctl-mono main. Catalog vectors pin malformed UTF-8, duplicate decoded JSON keys, byte offsets, signed numeric limits, order and priority ties, output allocation caps, glob work limits, and JSON token preservation.
+`go test ./...` checks the canonical 181-signature registry, exact `std.lock` bytes, schema-fragment compatibility binders, all 51 core vectors, and all 267 v3 stdlib vectors. It compares the full schema signature list with `lmscript --dsl-signatures`. Published lmscript 0.2.426 bundles 72 default signatures; lmctl-mono main currently bundles 171. The empty-host default-bundle probe skips until the compiler registers all 181 v3 signatures, while the explicit schema parity test remains mandatory. Catalog vectors pin malformed UTF-8, duplicate decoded JSON keys, byte offsets, signed numeric limits, order and priority ties, output allocation caps, glob work limits, and JSON token preservation.
 
 The shared catalog vectors use `bytes(hex)` to supply raw bytes and `Trace.hex(string)` to record lowercase hexadecimal. Both fixture adapters are test-host functions, not SDK catalog entries. Native vector tests verify lock digests without starting bash; the sync script remains available for manual updates. CI runs both standalone vector directories on Linux x64/arm64, macOS x64/arm64, and Windows x64.
 
-The root standard surface is pinned separately: `bash scripts/sync-std.sh --verify` checks `std/lmcode-std.schema.json` against the byte-identical v2 `std.lock`. Native tests compare all 171 enabled signatures with the pinned schema and, when `LMSCRIPT_BIN` points to a v2 compiler, compare the compiler's default empty-host catalog with the registry. The published compiler `0.2.426` still advertises the legacy 72 built-ins, so v2 default-bundle parity uses a scratch build of lmctl-mono main.
+The root standard surface is pinned separately: `bash scripts/sync-std.sh --verify` checks `std/lmcode-std.schema.json` against the byte-identical v3 `std.lock`. Native tests compare all 181 enabled signatures with the pinned schema and compare `lmscript --dsl-signatures std/lmcode-std.schema.json` with the registry. The published compiler `0.2.426` advertises 72 default built-ins and lmctl-mono main at `fa04890c` advertises 171; the default-catalog probe skips until all 181 v3 built-ins are present.
 
 Static analysis and a dependency-free build:
 
@@ -61,17 +61,17 @@ go vet ./...
 CGO_ENABLED=0 go build ./...
 ```
 
-The synchronized catalog suite contains 229 vectors, including containers and JSON;
+The synchronized catalog suite contains 267 vectors, including containers and JSON;
 the core suite remains 51. File fixtures own a fresh temporary directory per
 case and remove it afterward. `test_long_path` creates a Unicode filename past
 260 characters. `runtime_error_file` checks the operation/path prefix and a
 nonempty OS reason without depending on localized wording. Compiler parity
-also checks the five-function file fragment and the 171-signature standard.
+also checks the five-function file fragment and the 181-signature standard.
 
 The catalog suite includes 41 seeded property vectors (seeds 7, 42, 20261024),
 with independently calculated byte/numeric/container expectations. CI runs these
 through the ordinary catalog conformance step. `LMCODE_TRACE=1` emits actual
 trace/error records for byte-exact cross-SDK comparisons; the source generator
 and larger 16-seed/64-round mode live in lmcode-cpp `scripts/gen-std-corpus.py`
-and `scripts/diff-stdlib.py`. The synchronized suite has 229 catalog cases and
+and `scripts/diff-stdlib.py`. The synchronized suite has 267 catalog cases and
 51 core cases.

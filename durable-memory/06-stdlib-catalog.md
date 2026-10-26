@@ -1,19 +1,32 @@
-# Standard library catalog v2
+# Standard library catalog v3
 
 ## Canonical schema and registration
 
 `std/lmcode-std.schema.json` is copied byte-for-byte from lmcode-cpp and pinned
-by the matching v2 `std.lock`. `bash scripts/sync-std.sh --verify` checks the
+by the matching v3 `std.lock`. `bash scripts/sync-std.sh --verify` checks the
 lock version, schema path, and SHA-256. The default `lmcode.NewRegistry()` now
-registers all **171 signatures**; `NewRegistryWithoutStd()` remains empty, and
+registers all **181 signatures**; `NewRegistryWithoutStd()` remains empty, and
 `RegisterStd` remains idempotent. The optional testing catalog is still a host
 choice and does not count as std.
 
-V2 adds `IntMap` and `FloatMap`; nine Int/Float/Str Stack, Queue, and priority
+V2 added `IntMap` and `FloatMap`; nine Int/Float/Str Stack, Queue, and priority
 queue types; and immutable `Json` values created by `json_parse`. The root
 package owns these binders so default registration does not create a
 core-to-`stdlib` import cycle. The `stdlib` package re-exports the types and
 explicit group binders for compatibility and opt-out registries.
+
+## V3 additions
+
+The v3 catalog adds strict byte-oriented `str_base64_encode/decode` and
+`str_hex_encode/decode`. Hex encoding is lowercase; decoding accepts ASCII
+mixed-case hex only. Base64 decoding requires canonical padded RFC 4648 input
+and rejects whitespace, URL-safe characters, malformed padding, and nonzero pad
+bits. These functions preserve arbitrary bytes, including NUL and invalid UTF-8.
+
+`StrMap`, `IntMap`, and `FloatMap` now expose `keys()` and `values()` snapshots
+in insertion order. Each call allocates an independent typed list from the
+shared collection arena; later map or list changes do not alias. Float values
+preserve their binary64 payloads.
 
 ## Container contracts
 
@@ -73,20 +86,19 @@ consume arena slots. No third-party Go modules or CGO are used.
 
 ## Verification and compiler status
 
-The synchronized `conformance/stdlib-vectors` directory has 229 cases; the
+The synchronized `conformance/stdlib-vectors` directory has 267 cases; the
 core bytecode directory has 51. `go test ./...` checks both lock digests,
 compares all registry signatures with the canonical schema, and runs both
 vector suites. The test runner additionally compares the registry with
 `lmscript --dsl-signatures` when a compiler is available.
 
-Published npm lmscript `0.2.426` still returns 72 default signatures for an
-empty host, though its explicit-schema command sees all 171 declarations. A
-clean scratch build of lmctl-mono `origin/main` at `0ce49614a3236b88495652c7c892bba82bb3551d`
-returns 171 for the empty-host probe. Setting `LMSCRIPT_BIN` to that scratch
-compiler makes `TestCompilerDefaultCatalogParity` require exact 171-signature
-parity; without it, the test skips only that default-bundle probe while still
-checking the explicit v2 schema surface.
+Published npm lmscript `0.2.426` returns 72 default signatures for an empty
+host. A scratch build of lmctl-mono `origin/main` at `fa04890c` returns 171
+default signatures; its explicit schema command recognizes all 181 v3
+declarations. The Go tests verify exact compiler parity for the canonical v3
+schema and skip the default-catalog probe until lmctl-mono registers all 181
+functions/methods by default.
 
-The vector pin is lmcode-cpp commit
-`0ea7cb9eb5806ee7f62cd17bb01b8580ec373adf`. Do not edit the vendored expected
+The v3 vector pin is lmcode-cpp commit
+`38bbd918b7fde81db15d1d7427955cc5465d6f35`. Do not edit the vendored expected
 outputs here; sync a reviewed canonical commit with `scripts/sync-vectors.sh`.

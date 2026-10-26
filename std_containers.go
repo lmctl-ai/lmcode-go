@@ -57,10 +57,10 @@ func (m *orderedMap[T]) clear() {
 	m.entries = m.entries[:0]
 }
 
-// IntMap is an insertion-ordered string-keyed map of int64 values.
+// IntMap is an insertion-ordered byte-keyed map of int64 values.
 type IntMap struct{ data orderedMap[int64] }
 
-// FloatMap is an insertion-ordered string-keyed map of binary64 values.
+// FloatMap is an insertion-ordered byte-keyed map of binary64 values.
 type FloatMap struct{ data orderedMap[float64] }
 
 type IntMapEntry struct {
@@ -275,6 +275,30 @@ func registerMap[T any](r *Registry, arena *Collections, b mapBinding[T]) error 
 		}},
 		{"remove", []string{"string"}, "bool", func(self any, a []Value) (Value, error) { return Bool(data(self).remove(a[0].Str)), nil }},
 		{"clear", nil, typeName, func(self any, _ []Value) (Value, error) { data(self).clear(); return Object(typeName, self), nil }},
+		{"keys", nil, "StrList", func(self any, _ []Value) (Value, error) {
+			keys := make([]string, len(data(self).entries))
+			for i, entry := range data(self).entries {
+				keys[i] = entry.key
+			}
+			return arena.object("StrList", &StrList{values: keys})
+		}},
+		{"values", nil, mapListType(typeName), func(self any, _ []Value) (Value, error) {
+			entries := data(self).entries
+			switch typeName {
+			case "IntMap":
+				values := make([]int64, len(entries))
+				for i, entry := range entries {
+					values[i] = b.to(entry.value).Int
+				}
+				return arena.object("IntList", &IntList{values: values})
+			default:
+				values := make([]float64, len(entries))
+				for i, entry := range entries {
+					values[i] = b.to(entry.value).Float
+				}
+				return arena.object("FloatList", &FloatList{values: values})
+			}
+		}},
 	}
 	for _, method := range methods {
 		if err := r.registerBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
@@ -282,6 +306,13 @@ func registerMap[T any](r *Registry, arena *Collections, b mapBinding[T]) error 
 		}
 	}
 	return nil
+}
+
+func mapListType(typeName string) string {
+	if typeName == "IntMap" {
+		return "IntList"
+	}
+	return "FloatList"
 }
 
 func (b mapBinding[T]) typeNameToName() string {
