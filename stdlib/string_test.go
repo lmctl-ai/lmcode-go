@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -225,49 +224,6 @@ func TestSignatureParityAgainstFragment(t *testing.T) {
 	}
 	if !reflect.DeepEqual(fixture.Functions, fragment.Functions) {
 		t.Errorf("fixture functions %v do not match fragment %v", fixture.Functions, fragment.Functions)
-	}
-}
-
-func TestCompilerSignaturesParity(t *testing.T) {
-	compiler := os.Getenv("LMSCRIPT_BIN")
-	if compiler == "" {
-		var err error
-		compiler, err = exec.LookPath("lmscript")
-		if err != nil {
-			t.Skip("lmscript not found on PATH; compiler parity skipped")
-		}
-	}
-
-	fixturePath, err := filepath.Abs(filepath.Join("testdata", "string.schema.json"))
-	if err != nil {
-		t.Fatalf("filepath.Abs: %v", err)
-	}
-
-	cmd := exec.Command(compiler, "--dsl-signatures", fixturePath)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("compiler failed (%v): %s", err, string(out))
-	}
-
-	rawLines := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
-	var compilerSigs []string
-	if len(rawLines) > 0 && rawLines[len(rawLines)-1] == "" {
-		rawLines = rawLines[:len(rawLines)-1]
-	}
-	compilerSigs = append(compilerSigs, rawLines...)
-	sort.Strings(compilerSigs)
-
-	// lmscript 0.2.420 builds the std catalog into every schema, so the
-	// compiler reports the full std surface; compare against a std registry.
-	reg := lmcode.NewRegistry()
-	if err := stdlib.RegisterString(reg); err != nil {
-		t.Fatalf("RegisterString: %v", err)
-	}
-	regSigs := reg.Signatures()
-	sort.Strings(regSigs)
-
-	if !reflect.DeepEqual(compilerSigs, regSigs) {
-		t.Errorf("compiler signatures %v != registry signatures %v", compilerSigs, regSigs)
 	}
 }
 

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -101,7 +99,7 @@ func TestRegisterMath(t *testing.T) {
 	}
 }
 
-func TestMathCompilerSignatureParity(t *testing.T) {
+func TestMathFragmentSignatureParity(t *testing.T) {
 	var fixture struct {
 		Functions map[string][]struct {
 			Params  []string `json:"params"`
@@ -128,30 +126,5 @@ func TestMathCompilerSignatureParity(t *testing.T) {
 	}
 	if !reflect.DeepEqual(r.Signatures(), expected) {
 		t.Fatalf("registry signatures = %v, want %v", r.Signatures(), expected)
-	}
-	compiler, err := exec.LookPath("lmscript")
-	if err != nil {
-		t.Skip("lmscript not found on PATH; compiler parity skipped")
-	}
-	schema, err := filepath.Abs(filepath.Join("testdata", "math.schema.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	out, err := exec.Command(compiler, "--dsl-signatures", schema).CombinedOutput()
-	if err != nil {
-		t.Fatalf("compiler failed (%v): %s", err, out)
-	}
-	lines := strings.Fields(string(out))
-	// Signatures contain spaces, so split output by lines rather than fields.
-	lines = strings.Split(strings.TrimSpace(string(out)), "\n")
-	sort.Strings(lines)
-	// lmscript 0.2.420 builds the std catalog into every schema, so the
-	// compiler reports the full std surface; compare against a std registry.
-	full := lmcode.NewRegistry()
-	if err := stdlib.RegisterMath(full); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(lines, full.Signatures()) {
-		t.Fatalf("compiler signatures = %v, want %v", lines, full.Signatures())
 	}
 }

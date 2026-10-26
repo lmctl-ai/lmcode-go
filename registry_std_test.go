@@ -1,9 +1,13 @@
 package lmcode_test
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"reflect"
 	"sort"
 	"strings"
@@ -34,8 +38,8 @@ func canonicalSignatures(t *testing.T) []string {
 	if err := json.Unmarshal(data, &schema); err != nil {
 		t.Fatal(err)
 	}
-	if schema.Name != "lmcode_std_v1" {
-		t.Fatalf("canonical std name = %q, want lmcode_std_v1", schema.Name)
+	if schema.Name != "lmcode_std_v2" {
+		t.Fatalf("canonical std name = %q, want lmcode_std_v2", schema.Name)
 	}
 	var out []string
 	for n, defs := range schema.Functions {
@@ -52,6 +56,78 @@ func canonicalSignatures(t *testing.T) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func TestStdSchemaLock(t *testing.T) {
+	lock, err := os.ReadFile("std.lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := map[string]string{}
+	for _, line := range strings.Split(string(lock), "\n") {
+		if key, value, ok := strings.Cut(line, "="); ok {
+			fields[key] = value
+		}
+	}
+	if fields["schema"] != "std/lmcode-std.schema.json" || fields["version"] != "2" {
+		t.Fatalf("std.lock does not pin canonical v2: %v", fields)
+	}
+	data, err := os.ReadFile(fields["schema"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(data)
+	if got := hex.EncodeToString(digest[:]); got != fields["sha256"] {
+		t.Fatalf("std schema sha256 = %s, std.lock has %s", got, fields["sha256"])
+	}
+}
+
+func TestPublishedCompilerStdSignatures(t *testing.T) {
+	compiler := os.Getenv("LMSCRIPT_BIN")
+	if compiler == "" {
+		var err error
+		compiler, err = exec.LookPath("lmscript")
+		if err != nil {
+			t.Skip("lmscript is not installed; CI installs the published compiler")
+		}
+	}
+	output, err := exec.Command(compiler, "--dsl-signatures", "std/lmcode-std.schema.json").Output()
+	if err != nil {
+		t.Fatalf("lmscript --dsl-signatures: %v", err)
+	}
+	want := strings.Join(lmcode.NewRegistry().StdSignatures(), "\n") + "\n"
+	if !bytes.Equal(output, []byte(want)) {
+		t.Fatalf("compiler signatures differ from the default Go registry (%d output bytes)", len(output))
+	}
+}
+
+func TestCompilerDefaultCatalogParity(t *testing.T) {
+	compiler := os.Getenv("LMSCRIPT_BIN")
+	explicit := compiler != ""
+	if compiler == "" {
+		var err error
+		compiler, err = exec.LookPath("lmscript")
+		if err != nil {
+			t.Skip("lmscript is not installed; CI installs the published compiler")
+		}
+	}
+	tmp := t.TempDir() + "/empty-host.schema.json"
+	const emptyHost = `{"dsl.schema":2,"name":"empty_host","context":{},"types":{},"functions":{},"conversions":[]}`
+	if err := os.WriteFile(tmp, []byte(emptyHost), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command(compiler, "--dsl-signatures", tmp).Output()
+	if err != nil {
+		t.Fatalf("lmscript --dsl-signatures empty host: %v", err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(output), "\n"), "\n")
+	if len(lines) == 72 && !explicit {
+		t.Skip("published lmscript still bundles std v1; run with LMSCRIPT_BIN set to the scratch lmctl-mono main build")
+	}
+	want := lmcode.NewRegistry().StdSignatures()
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("compiler default catalog has %d signatures; Go registry has %d", len(lines), len(want))
+	}
 }
 
 func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
@@ -112,7 +188,7 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 
 func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	r := lmcode.NewRegistry()
-	if len(r.StdSignatures()) != 72 {
+	if len(r.StdSignatures()) != 171 {
 		t.Fatalf("default std count = %d", len(r.StdSignatures()))
 	}
 	if err := lmcode.RegisterTesting(r, nil); err != nil {
@@ -122,7 +198,7 @@ func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	if len(host) != 2 || host[0] != "fn assert_close(float, float, float) -> void" || host[1] != "fn print(string) -> void" {
 		t.Fatalf("testing host signatures = %v", host)
 	}
-	if len(r.StdSignatures()) != 72 {
+	if len(r.StdSignatures()) != 171 {
 		t.Fatalf("std count after testing = %d", len(r.StdSignatures()))
 	}
 	if r.MatchesSchemaSignatures(r.StdSignatures()) {

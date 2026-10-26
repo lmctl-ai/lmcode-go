@@ -209,7 +209,15 @@ func RegisterStd(r *Registry) error {
 	} else if err := RegisterCollections(r); err != nil {
 		return err
 	}
-	if err := RegisterFile(r, r.stdCollections); err != nil { return err }
+	if err := RegisterFile(r, r.stdCollections); err != nil {
+		return err
+	}
+	if err := RegisterContainers(r, r.stdCollections); err != nil {
+		return err
+	}
+	if err := RegisterJSON(r, r.stdCollections); err != nil {
+		return err
+	}
 	for k := range r.functions {
 		if !beforeF[k] {
 			r.builtinFunctions[k] = true

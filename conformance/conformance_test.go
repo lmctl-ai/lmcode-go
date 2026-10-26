@@ -94,8 +94,8 @@ func TestAllVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VectorNames(%s): %v", dir, err)
 	}
-	if len(names) < 21 {
-		t.Fatalf("expected at least 21 vectors, got %d", len(names))
+	if len(names) != 51 {
+		t.Fatalf("expected 51 core vectors, got %d", len(names))
 	}
 
 	for _, name := range names {
@@ -114,8 +114,8 @@ func TestAllCatalogVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VectorNames(%s): %v", dir, err)
 	}
-	if len(names) < 118 {
-		t.Fatalf("expected at least 118 catalog vectors, got %d", len(names))
+	if len(names) != 229 {
+		t.Fatalf("expected 229 catalog vectors, got %d", len(names))
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -131,8 +131,8 @@ func TestStdlibVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(names) < 29 {
-		t.Fatalf("expected at least 29 catalog vectors, got %d", len(names))
+	if len(names) != 229 {
+		t.Fatalf("expected 229 catalog vectors, got %d", len(names))
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
