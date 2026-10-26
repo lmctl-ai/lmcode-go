@@ -7,15 +7,17 @@ LOCK="$HERE/std.lock"
 mkdir -p "$HERE/std"
 if [ "${1:-}" = "--verify" ]; then
 	[ -f "$DST" ] && [ -f "$LOCK" ] || { echo "std schema or std.lock missing" >&2; exit 1; }
+	schema="$(sed -n 's/^schema=//p' "$LOCK")"
+	version="$(sed -n 's/^version=//p' "$LOCK")"
 	want="$(sed -n 's/^sha256=//p' "$LOCK")"
 	have="$(sha256sum "$DST" | cut -d' ' -f1)"
+	[ "$schema" = "std/lmcode-std.schema.json" ] && [ "$version" = "2" ] || { echo "std.lock is not the v2 canonical lock" >&2; exit 1; }
 	[ "$want" = "$have" ] || { echo "std schema digest differs from std.lock" >&2; exit 1; }
-	echo "std schema matches std.lock ($(sed -n 's/^commit=//p' "$LOCK"))"
+	echo "std v$version schema matches std.lock"
 	exit 0
 fi
 	git -C "$SDK" rev-parse --git-dir >/dev/null 2>&1 || { echo "lmcode-cpp checkout not found at $SDK" >&2; exit 1; }
-	commit="$(git -C "$SDK" log -1 --format=%H -- std/lmcode-std.schema.json)"
+	commit="$(git -C "$SDK" rev-parse HEAD)"
 	git -C "$SDK" show "$commit:std/lmcode-std.schema.json" > "$DST"
-	digest="$(sha256sum "$DST" | cut -d' ' -f1)"
-	printf 'repo=https://github.com/lmctl-ai/lmcode-cpp\ncommit=%s\nsha256=%s\n' "$commit" "$digest" > "$LOCK"
-	echo "synced std schema from lmcode-cpp $commit"
+	git -C "$SDK" show "$commit:std.lock" > "$LOCK"
+	echo "synced canonical std lock and schema from lmcode-cpp $commit"
