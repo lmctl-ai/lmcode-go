@@ -148,3 +148,25 @@ path bytes unchanged, while Windows requires UTF-8 paths and supports long names
 Failures trap with `RUN_HOST` and `FUNCTION: PATH: OS_REASON`.
 Testing is outside std: hosts declare its separate fragment and explicitly call
 `stdlib.RegisterTesting(registry, writer)` for `print`/`assert_close`.
+
+## Compiler-only rule methods (R47/R48)
+
+Schema 2 may declare SAM `interfaces`. Top-level `@NAME` annotations and
+`implements Interface` are checked by the compiler and erased during inlining;
+they do not add callbacks, imports or registry signatures. Go's loader hashes
+schema bytes without parsing JSON, so it accepts interface-bearing schemas
+without a VM change. DSLB remains v5; changing schema bytes requires recompiling.
+The canonical 51 core and 267 catalog vectors are unchanged by this feature.
+
+`go test . -run TestAnnotatedSAMRuleRunsAsInlinedV5Code` executes the committed
+annotated rule through capture(42), checks the ordinary host signature and schema
+mismatch. Its fixture is byte-identical to the Rust runtime's rule fixture.
+Reproduce it with an R47/R48-capable compiler (mono `c1eb89de` used):
+
+```sh
+"$LMSCRIPT_BIN" testdata/rule-methods/program.lms /tmp/rule-methods.dslb
+cmp /tmp/rule-methods.dslb testdata/rule-methods/program.dslb
+```
+
+The pinned runtime test does not require that compiler at test time. Older
+published compilers must not regenerate the rule source.

@@ -75,3 +75,15 @@ trace/error records for byte-exact cross-SDK comparisons; the source generator
 and larger 16-seed/64-round mode live in lmcode-cpp `scripts/gen-std-corpus.py`
 and `scripts/diff-stdlib.py`. The synchronized suite has 267 catalog cases and
 51 core cases.
+
+## R47/R48 (2026-10-28)
+
+`TestAnnotatedSAMRuleRunsAsInlinedV5Code` runs a compiler-produced annotated SAM
+rule, checks capture(42), and refuses changed schema bytes. Control first failed
+with a schema mismatch when interfaces was removed from the fixture schema;
+restoring the exact interface-bearing schema passes without a loader/VM change.
+The loader never parses schema JSON. No schema helper needs a new allowed key.
+Core and std vector copies match canonical lmcode-cpp aec9b09 unchanged.
+The fixture schema/source/bytecode match lmcode-rust's rule-method fixture.
+Use LMSCRIPT_BIN for current compiler parity; put the supplied compiler's bin
+first on PATH for the older greeter script, which resolves lmscript from PATH.
