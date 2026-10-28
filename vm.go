@@ -146,19 +146,39 @@ func intFromFloat(x float64) int64 {
 // Load time owns callbacks and run state; the argument is retained for legacy
 // callers and is used only for programs constructed without a bound registry.
 func (p *Program) Run(ctx *Context, reg *Registry, stats ...*RunStats) error {
+	_, err := p.execute(ctx, reg, nil, false, stats...)
+	return err
+}
+
+// Call invokes one rule without executing the body. Argument kinds are host-owned.
+func (p *Program) Call(entry int, ctx *Context, reg *Registry, args []Value, stats ...*RunStats) (Value, error) {
+	if entry < 0 || entry >= len(p.entries) {
+		return None(), NewHostError(fmt.Sprintf("call entry index %d out of range (%d entries)", entry, len(p.entries)))
+	}
+	e := &p.entries[entry]
+	if len(args) != len(e.Params) {
+		return None(), NewHostError(fmt.Sprintf("call entry '%s' expects %d argument(s); found %d", e.Name, len(e.Params), len(args)))
+	}
+	view := *p
+	view.region = e.region
+	return view.execute(ctx, reg, args, e.Returns != "void", stats...)
+}
+
+func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture bool, stats ...*RunStats) (Value, error) {
 	boundReg := p.registry
 	if boundReg == nil {
 		boundReg = reg
 	}
 	if boundReg != nil {
 		if err := boundReg.beginRun(); err != nil {
-			return err
+			return None(), err
 		}
 		defer boundReg.endRun()
 	}
 	reg = boundReg
 	stack := make([]Value, 0, p.maxStack)
 	locals := make([]Value, len(p.locals))
+	copy(locals, args)
 
 	pos := 0
 	code := p.code
@@ -779,11 +799,14 @@ func (p *Program) Run(ctx *Context, reg *Registry, stats ...*RunStats) error {
 			if line != nil {
 				e.Locate(line.Line, line.Column)
 			}
-			return e
+			return None(), e
 		}
 
 		if op == OpHalt {
-			return nil
+			if capture {
+				return pop()
+			}
+			return None(), nil
 		}
 	}
 }

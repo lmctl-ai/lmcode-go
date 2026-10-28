@@ -291,10 +291,129 @@ func TraceLineMatches(actual, expected string) bool {
 	return math.Abs(actualVal-expectedVal) <= tolerance
 }
 
+func equalStrings(actual, expected []string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range actual {
+		if actual[i] != expected[i] {
+			return false
+		}
+	}
+	return true
+}
+func tracesMatch(actual, expected []string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range actual {
+		if !TraceLineMatches(actual[i], expected[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Expectation describes expected output parsed from an .expect file.
 type Expectation struct {
 	Kind  string
 	Lines []string
+}
+
+func entryArg(raw json.RawMessage, typ string) (lmcode.Value, error) {
+	var v any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&v); err != nil {
+		return lmcode.None(), err
+	}
+	switch x := v.(type) {
+	case bool:
+		return lmcode.Bool(x), nil
+	case string:
+		return lmcode.String(x), nil
+	case json.Number:
+		if typ == "float" {
+			n, err := x.Float64()
+			return lmcode.Float(n), err
+		}
+		n, err := x.Int64()
+		return lmcode.Int(n), err
+	case map[string]any:
+		if id, ok := x["id"].(json.Number); ok && x["type"] == "Thing" {
+			n, err := id.Int64()
+			return lmcode.Object("Thing", &Thing{ID: n}), err
+		}
+	}
+	return lmcode.None(), fmt.Errorf("unsupported entry argument for %s", typ)
+}
+
+func valueText(v lmcode.Value) string {
+	switch v.Kind {
+	case lmcode.KindInt:
+		return fmt.Sprintf("int %d", v.Int)
+	case lmcode.KindFloat:
+		return "float " + lmcode.FormatG15(v.Float)
+	case lmcode.KindStr:
+		return "string " + v.Str
+	case lmcode.KindBool:
+		if v.Bool {
+			return "bool true"
+		}
+		return "bool false"
+	case lmcode.KindObj:
+		if t, ok := v.Obj.(*Thing); ok {
+			return fmt.Sprintf("thing %d", t.ID)
+		}
+		return "thing ?"
+	default:
+		return "void"
+	}
+}
+
+func runEntryVector(p *lmcode.Program, stub *Stub, entryName, argsJSON string) (string, []string, error) {
+	idx := -1
+	var entry lmcode.Entry
+	for i, e := range p.Entries() {
+		if e.Name == entryName {
+			idx, entry = i, e
+			break
+		}
+	}
+	if idx < 0 {
+		return "", nil, fmt.Errorf("entry %q is not present", entryName)
+	}
+	var raws []json.RawMessage
+	if err := json.Unmarshal([]byte(argsJSON), &raws); err != nil {
+		return "", nil, err
+	}
+	ctx := lmcode.NewContext()
+	ctx.Set("t", stub)
+	ctx.Set("root", stub.Root)
+	ctx.Set("v", stub.Variable)
+	if stub.Xs != nil {
+		ctx.Set("xs", stub.Xs)
+	}
+	if err := p.Run(ctx, stub.Reg); err != nil {
+		return "", nil, err
+	}
+	args := make([]lmcode.Value, len(raws))
+	for i, raw := range raws {
+		var err error
+		typ := ""
+		if i < len(entry.Params) {
+			typ = entry.Params[i]
+		}
+		args[i], err = entryArg(raw, typ)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	result, err := p.Call(idx, ctx, stub.Reg, args)
+	if err != nil {
+		return "", nil, err
+	}
+	return valueText(result), append([]string(nil), stub.Trace...), nil
 }
 
 // ReadExpect reads and unescapes an .expect file.
@@ -379,22 +498,47 @@ func CheckVector(dir, name string) (string, error) {
 	var loadErr error
 	loaded := false
 	ran := false
+	var entryLines []string
 
 	p, err := lmcode.Load(bytecode, schema, stub.Reg)
 	if err != nil {
 		loadErr = err
 	} else {
 		loaded = true
-		ctx := lmcode.NewContext()
-		ctx.Set("t", stub)
-		ctx.Set("root", stub.Root)
-		ctx.Set("v", stub.Variable)
-		if !stdMode {
-			ctx.Set("xs", stub.Xs)
-		}
-		runErr = p.Run(ctx, stub.Reg)
-		if runErr == nil {
+		if expect.Kind == "entries" {
+			for _, e := range p.Entries() {
+				entryLines = append(entryLines, fmt.Sprintf("%s %s %s", e.Name, e.Annotation, e.Iface))
+			}
 			ran = true
+		} else if strings.HasPrefix(expect.Kind, "call") {
+			if len(expect.Lines) == 0 {
+				return "", fmt.Errorf("missing call selector")
+			}
+			selector := expect.Lines[0]
+			fields := strings.SplitN(selector, " ", 2)
+			argsJSON := "[]"
+			if len(fields) == 2 {
+				argsJSON = fields[1]
+			}
+			result, trace, err := runEntryVector(p, stub, fields[0], argsJSON)
+			if err != nil {
+				runErr = err
+			} else {
+				entryLines = append([]string{"result " + result}, trace...)
+				ran = true
+			}
+		} else {
+			ctx := lmcode.NewContext()
+			ctx.Set("t", stub)
+			ctx.Set("root", stub.Root)
+			ctx.Set("v", stub.Variable)
+			if !stdMode {
+				ctx.Set("xs", stub.Xs)
+			}
+			runErr = p.Run(ctx, stub.Reg)
+			if runErr == nil {
+				ran = true
+			}
 		}
 	}
 
@@ -422,6 +566,24 @@ func CheckVector(dir, name string) (string, error) {
 					ok = false
 					break
 				}
+			}
+		}
+	case "entries":
+		ok = ran && len(entryLines) == len(expect.Lines) && equalStrings(entryLines, expect.Lines)
+	case "call":
+		ok = ran && len(expect.Lines) >= 2 && len(entryLines) == len(expect.Lines)-1 && tracesMatch(entryLines, expect.Lines[1:])
+	case "call_error":
+		if loaded && !ran && runErr != nil && len(expect.Lines) == 3 {
+			if e, yes := runErr.(*lmcode.Error); yes {
+				ok = e.Code == expect.Lines[1] && strings.Contains(e.Message, expect.Lines[2])
+			}
+		}
+	case "call_error_at":
+		if loaded && !ran && runErr != nil && len(expect.Lines) >= 5 {
+			if e, yes := runErr.(*lmcode.Error); yes {
+				line, _ := strconv.ParseUint(expect.Lines[2], 10, 32)
+				col, _ := strconv.ParseUint(expect.Lines[3], 10, 16)
+				ok = e.Code == expect.Lines[1] && e.HasLocation == (line != 0) && (!e.HasLocation || e.Line == uint32(line)) && e.HasColumn == (col != 0) && (!e.HasColumn || e.Column == uint16(col)) && strings.Contains(e.Message, expect.Lines[4])
 			}
 		}
 	case "runtime_error":

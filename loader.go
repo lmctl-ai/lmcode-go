@@ -14,7 +14,7 @@ import (
 // Format constants.
 const (
 	Magic          = "DSLB"
-	Version uint16 = 5
+	Version uint16 = 6
 )
 
 // Local represents a declared local variable slot in the bytecode.
@@ -43,17 +43,38 @@ type loopInfo struct {
 	next    int
 }
 
-// Program is a loaded, bound, and verified lmcode bytecode program.
-type Program struct {
-	consts   []string
-	imports  []importEntry
-	context  []string
+// Entry describes a host-callable rule, in source order.
+type Entry struct {
+	Name, Annotation, Iface string
+	Params                  []string
+	Returns                 string
+	region                  region
+}
+type region struct {
 	locals   []Local
 	maxStack uint16
 	code     []byte
 	lines    []Line
-	loops    map[int]loopInfo // FOR_NEXT pc -> loopInfo
+	loops    map[int]loopInfo
+}
+
+// Program shares pools and a bound registry across independent code regions.
+type Program struct {
+	consts  []string
+	imports []importEntry
+	context []string
+	region
+	entries  []Entry
 	registry *Registry
+}
+
+// Entries returns metadata copies; modifying them cannot change a loaded program.
+func (p *Program) Entries() []Entry {
+	out := append([]Entry(nil), p.entries...)
+	for i := range out {
+		out[i].Params = append([]string(nil), out[i].Params...)
+	}
+	return out
 }
 
 // ConstantCount returns the number of constant pool entries.
@@ -227,10 +248,7 @@ func LoadProgram(bytecode, schemaBytes []byte, reg *Registry) (*Program, error) 
 		return nil, err
 	}
 
-	p := &Program{
-		loops:    make(map[int]loopInfo),
-		registry: reg,
-	}
+	p := &Program{registry: reg}
 
 	for i := uint32(0); i < nconst; i++ {
 		tag, err := r.u8()
@@ -328,72 +346,152 @@ func LoadProgram(bytecode, schemaBytes []byte, reg *Registry) (*Program, error) 
 		p.context = append(p.context, name)
 	}
 
-	nlocals, err := r.u16()
-	if err != nil {
-		return nil, err
-	}
-	for i := uint16(0); i < nlocals; i++ {
-		typeIdx, err := r.u32()
+	readRegion := func(r *reader) (region, error) {
+		g := region{loops: make(map[int]loopInfo)}
+		nlocals, err := r.u16()
 		if err != nil {
-			return nil, err
+			return g, err
 		}
-		typeName, err := cidx(typeIdx, "local type")
-		if err != nil {
-			return nil, err
+		for i := uint16(0); i < nlocals; i++ {
+			typeIdx, err := r.u32()
+			if err != nil {
+				return g, err
+			}
+			typeName, err := cidx(typeIdx, "local type")
+			if err != nil {
+				return g, err
+			}
+			hidden, err := r.u8()
+			if err != nil {
+				return g, err
+			}
+			if hidden > 1 {
+				return g, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("local %d hidden flag must be 0 or 1", i))
+			}
+			g.locals = append(g.locals, Local{Type: typeName, Hidden: hidden == 1})
 		}
-		hidden, err := r.u8()
-		if err != nil {
-			return nil, err
-		}
-		if hidden > 1 {
-			return nil, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("local %d hidden flag must be 0 or 1", i))
-		}
-		p.locals = append(p.locals, Local{Type: typeName, Hidden: hidden == 1})
-	}
 
-	p.maxStack, err = r.u16()
-	if err != nil {
-		return nil, err
-	}
-
-	codeLen, err := r.u32()
-	if err != nil {
-		return nil, err
-	}
-	codeBytes, err := r.bytes(int(codeLen))
-	if err != nil {
-		return nil, err
-	}
-	p.code = codeBytes
-
-	nlines, err := r.u32()
-	if err != nil {
-		return nil, err
-	}
-	for i := uint32(0); i < nlines; i++ {
-		pc, err := r.u32()
+		g.maxStack, err = r.u16()
 		if err != nil {
-			return nil, err
+			return g, err
 		}
-		line, err := r.u32()
-		if err != nil {
-			return nil, err
-		}
-		col, err := r.u16()
-		if err != nil {
-			return nil, err
-		}
-		if i > 0 && pc < p.lines[i-1].PC {
-			return nil, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("line table is not sorted by pc at entry %d", i))
-		}
-		p.lines = append(p.lines, Line{PC: pc, Line: line, Column: col})
-	}
 
+		codeLen, err := r.u32()
+		if err != nil {
+			return g, err
+		}
+		codeBytes, err := r.bytes(int(codeLen))
+		if err != nil {
+			return g, err
+		}
+		g.code = codeBytes
+
+		nlines, err := r.u32()
+		if err != nil {
+			return g, err
+		}
+		for i := uint32(0); i < nlines; i++ {
+			pc, err := r.u32()
+			if err != nil {
+				return g, err
+			}
+			line, err := r.u32()
+			if err != nil {
+				return g, err
+			}
+			col, err := r.u16()
+			if err != nil {
+				return g, err
+			}
+			if i > 0 && pc < g.lines[i-1].PC {
+				return g, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("line table is not sorted by pc at entry %d", i))
+			}
+			g.lines = append(g.lines, Line{PC: pc, Line: line, Column: col})
+		}
+
+		return g, nil
+	}
+	p.region, err = readRegion(r)
+	if err != nil {
+		return nil, err
+	}
+	nentries, err := r.u16()
+	if err != nil {
+		return nil, err
+	}
+	for i := uint16(0); i < nentries; i++ {
+		nameIndex, e := r.u32()
+		if e != nil {
+			return nil, e
+		}
+		name, e := cidx(nameIndex, "entry name")
+		if e != nil {
+			return nil, e
+		}
+		readEntry := func() (Entry, error) {
+			entry := Entry{Name: name}
+			annotationIndex, e := r.u32()
+			if e != nil {
+				return entry, e
+			}
+			entry.Annotation, e = cidx(annotationIndex, "entry annotation")
+			if e != nil {
+				return entry, e
+			}
+			ifaceIndex, e := r.u32()
+			if e != nil {
+				return entry, e
+			}
+			entry.Iface, e = cidx(ifaceIndex, "entry interface")
+			if e != nil {
+				return entry, e
+			}
+			var ok bool
+			entry.Params, entry.Returns, ok = parseInterface(entry.Iface)
+			if !ok {
+				return entry, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("interface '%s' is not an interface signature", entry.Iface))
+			}
+			nparams, e := r.u16()
+			if e != nil {
+				return entry, e
+			}
+			entry.region, e = readRegion(r)
+			if e != nil {
+				return entry, e
+			}
+			if int(nparams) != len(entry.Params) {
+				return entry, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("declares %d parameter(s); %s has %d", nparams, entry.Iface, len(entry.Params)))
+			}
+			if int(nparams) > len(entry.region.locals) {
+				return entry, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("nparams %d exceeds nlocals %d", nparams, len(entry.region.locals)))
+			}
+			for j, ty := range entry.Params {
+				local := entry.region.locals[j]
+				if local.Hidden {
+					return entry, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("parameter %d is hidden", j+1))
+				}
+				if local.Type != ty {
+					return entry, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("parameter %d has type %s; the interface expects %s", j+1, local.Type, ty))
+				}
+			}
+			return entry, nil
+		}
+		entry, e := readEntry()
+		if e != nil {
+			return nil, entryError(name, e)
+		}
+		view := *p
+		view.region = entry.region
+		if e = view.verify(&entry.Returns); e != nil {
+			return nil, entryError(name, e)
+		}
+		entry.region = view.region
+		p.entries = append(p.entries, entry)
+	}
 	if !r.done() {
-		return nil, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("bytecode has %d trailing byte(s) after the line table", len(bytecode)-r.pos))
+		return nil, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("bytecode has %d trailing byte(s) after the entries", len(bytecode)-r.pos))
 	}
-
-	if err := p.verify(); err != nil {
+	if err := p.verify(nil); err != nil {
 		return nil, err
 	}
 
@@ -435,7 +533,7 @@ type jumpEdge struct {
 	target int
 }
 
-func (p *Program) verify() error {
+func (p *Program) verify(returns *string) error {
 	var insns []verifiedInstr
 	var open []openLoop
 	var ordinary []jumpEdge
@@ -813,7 +911,7 @@ func (p *Program) verify() error {
 		}
 	}
 
-	if err := p.verifyStack(insns); err != nil {
+	if err := p.verifyStack(insns, returns); err != nil {
 		return err
 	}
 
@@ -826,7 +924,7 @@ func (p *Program) verify() error {
 	return nil
 }
 
-func (p *Program) verifyStack(insns []verifiedInstr) error {
+func (p *Program) verifyStack(insns []verifiedInstr, returns *string) error {
 	hasLoops := false
 	for _, in := range insns {
 		if in.op == OpForRange || in.op == OpWhileBegin {
@@ -834,7 +932,7 @@ func (p *Program) verifyStack(insns []verifiedInstr) error {
 			break
 		}
 	}
-	if !hasLoops {
+	if !hasLoops && returns == nil {
 		return nil
 	}
 
@@ -973,6 +1071,15 @@ func (p *Program) verifyStack(insns []verifiedInstr) error {
 			return NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("operand stack underflow at offset %d", in.pc))
 		}
 		after := depth - int64(pop) + int64(push)
+		if op == OpHalt && returns != nil {
+			want := int64(1)
+			if *returns == "void" {
+				want = 0
+			}
+			if after != want {
+				return NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("HALT leaves %d values, interface returns %s", after, *returns))
+			}
+		}
 
 		if branch {
 			merge(in.target, after)
@@ -1007,4 +1114,47 @@ func (p *Program) verifyStack(insns []verifiedInstr) error {
 	}
 
 	return nil
+}
+
+func entryError(name string, err error) error {
+	sep := ": "
+	if strings.HasPrefix(err.Error(), "declares ") || strings.HasPrefix(err.Error(), "parameter ") {
+		sep = " "
+	}
+	return NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("entry '%s'%s%s", name, sep, err.Error()))
+}
+func parseInterface(text string) ([]string, string, bool) {
+	ident := func(s string) bool {
+		if len(s) == 0 {
+			return false
+		}
+		for i, c := range []byte(s) {
+			if !(c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || i > 0 && c >= '0' && c <= '9') {
+				return false
+			}
+		}
+		return true
+	}
+	tail, ok := strings.CutPrefix(text, "interface ")
+	if !ok {
+		return nil, "", false
+	}
+	name, tail, ok := strings.Cut(tail, "(")
+	if !ok || !ident(name) {
+		return nil, "", false
+	}
+	args, returns, ok := strings.Cut(tail, ") -> ")
+	if !ok || !ident(returns) {
+		return nil, "", false
+	}
+	var params []string
+	if args != "" {
+		params = strings.Split(args, ", ")
+	}
+	for _, p := range params {
+		if !ident(p) || p == "void" {
+			return nil, "", false
+		}
+	}
+	return params, returns, true
 }

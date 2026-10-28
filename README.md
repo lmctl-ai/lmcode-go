@@ -5,7 +5,7 @@ Go 1.26+, standard library only, zero third-party dependencies (`go.mod` has no 
 
 ## Status
 
-Experimental. The current runtime reads bytecode version 5 only; older and newer versions are refused. Use a matching
+Experimental. The current runtime reads bytecode version 6 only; older and newer versions are refused. Use a matching
 `lmscript` compiler from the published `@lmctl-ai/lmctl` npm package (or toolchain).
 
 ## What it is
@@ -22,12 +22,12 @@ SHA-256 binding).
 | **Bytecode Conformance Suite** | **Unit Tests & Invariants** |
 | --- | --- |
 | <img src="docs/images/conformance.png" width="440" alt="Bytecode Conformance Suite"> | <img src="docs/images/unit-tests.png" width="440" alt="Unit Tests & Invariants"> |
-| All 51 core bytecode vectors pass across opcodes, types, error paths, and control flow.<br>`go run ./cmd/conformance conformance/vectors` | Unit tests covering VM type invariants, line tables, and registry semantics.<br>`go test -v .` |
+| All 70 core bytecode vectors pass across opcodes, types, error paths, and control flow.<br>`go run ./cmd/conformance conformance/vectors` | Unit tests covering VM type invariants, line tables, and registry semantics.<br>`go test -v .` |
 
 | **Greeter Example Host** | **Same Bytecode, Four Runtimes** |
 | --- | --- |
 | <img src="docs/images/greeter-example.png" width="440" alt="Greeter Example Host"> | <img src="docs/images/same-bytecode-four-runtimes.png" width="440" alt="Same Bytecode, Four Runtimes"> |
-| Minimal embedding host compiling and executing DSL logic in pure Go.<br>`lmscript examples/greeter/build.lms && ./bin/greeter greeter.dslb` | Cross-language parity: C++, Rust, Go, and C# run the exact same bytecode.<br>`PASS 51/51 vectors across 4 runtimes` |
+| Minimal embedding host compiling and executing DSL logic in pure Go.<br>`lmscript examples/greeter/build.lms && ./bin/greeter greeter.dslb` | Cross-language parity: C++, Rust, Go, and C# run the exact same bytecode.<br>`PASS Historical v5 parity; v6 ports are rolling out` |
 
 ## Embedding it in twenty lines
 
@@ -78,7 +78,7 @@ func main() {
 
 ## Versioning rule
 
-`lmcode.Version` is the bytecode format version this SDK reads. The SDK version equals that number (currently 5) and the loader refuses every other version: there is no backward compatibility. When the compiler's format changes, the compiler, this SDK, and every host move together. Version 5 includes structured `while` and `range` loops, lexical `break` and `continue`, integer and floating-point math, typed imports, and line tables.
+`lmcode.Version` is the bytecode format version this SDK reads. The SDK version equals that number (currently 6) and the loader refuses every other version: there is no backward compatibility. When the compiler's format changes, the compiler, this SDK, and every host move together. Version 6 retains structured `while` and `range` loops, lexical `break` and `continue`, integer and floating-point math, typed imports, and line tables.
 
 ## What load() guarantees
 
@@ -105,7 +105,7 @@ The root `lmcode` package owns the canonical 181-signature standard surface. `Ne
 
 ## Build and test
 
-Run the entire test suite (unit tests, 51 core vectors and 267 stdlib vectors):
+Run the entire test suite (unit tests, 70 core vectors and 267 stdlib vectors):
 
 ```sh
 go test ./...
@@ -128,7 +128,7 @@ CGO_ENABLED=0 go build -o bin/greeter ./examples/greeter
 
 ## Sibling runtimes
 
-The same bytecode v5 and the same conformance vectors are implemented by:
+The same bytecode v6 and the same conformance vectors are implemented by:
 - [lmcode-cpp](https://github.com/lmctl-ai/lmcode-cpp) (C++17 single-header reference)
 - [lmcode-rust](https://github.com/lmctl-ai/lmcode-rust) (Rust crate reference)
 - [lmcode-go](https://github.com/lmctl-ai/lmcode-go) (Go module)
@@ -149,24 +149,27 @@ Failures trap with `RUN_HOST` and `FUNCTION: PATH: OS_REASON`.
 Testing is outside std: hosts declare its separate fragment and explicitly call
 `stdlib.RegisterTesting(registry, writer)` for `print`/`assert_close`.
 
-## Compiler-only rule methods (R47/R48)
+## Rule entries (R47/R48/R49, DSLB v6)
 
-Schema 2 may declare SAM `interfaces`. Top-level `@NAME` annotations and
-`implements Interface` are checked by the compiler and erased during inlining;
-they do not add callbacks, imports or registry signatures. Go's loader hashes
-schema bytes without parsing JSON, so it accepts interface-bearing schemas
-without a VM change. DSLB remains v5; changing schema bytes requires recompiling.
-The canonical 51 core and 267 catalog vectors are unchanged by this feature.
+`Program.Entries()` returns source-order metadata copies with `Name`, `Annotation`,
+`Iface`, `Params` (type names) and `Returns`. An annotated rule is also independently
+host-callable; ordinary source calls remain compiler-inlined. Interfaces are not
+registry callbacks. Entries share the file pools, with their own code, locals,
+stack metadata and source maps.
 
-`go test . -run TestAnnotatedSAMRuleRunsAsInlinedV5Code` executes the committed
-annotated rule through capture(42), checks the ordinary host signature and schema
-mismatch. Its fixture is byte-identical to the Rust runtime's rule fixture.
-Reproduce it with an R47/R48-capable compiler (mono `c1eb89de` used):
-
-```sh
-"$LMSCRIPT_BIN" testdata/rule-methods/program.lms /tmp/rule-methods.dslb
-cmp /tmp/rule-methods.dslb testdata/rule-methods/program.dslb
+```go
+result, err := program.Call(0, context, registry, []lmcode.Value{lmcode.Int(41)})
 ```
 
-The pinned runtime test does not require that compiler at test time. Older
-published compilers must not regenerate the rule source.
+`Run` executes only the body. `Call` needs no prior `Run`; it fills parameter
+locals from zero and returns the HALT value (`None()` for void). An optional
+`*RunStats` argument has the same semantics as Run. Both use one execute path
+and the same bound-registry lifetime behavior. Argument kinds are host-owned;
+wrong arity is RUN_HOST `call entry 'NAME' expects N argument(s); found M`.
+The loader checks parameter count/type/visibility, entry-local jumps, and HALT
+depth unconditionally, even without loops. Version 6 is the only accepted format.
+
+The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
+`go test ./...` covers those vectors and direct loader/API controls. See
+[rule-entry notes](durable-memory/07-rule-entries.md). Samples keep their old
+runtime pins until their separate migration; no samples change in this task.

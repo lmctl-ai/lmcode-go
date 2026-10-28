@@ -31,3 +31,5 @@ Repository: https://github.com/lmctl-ai/lmcode-go. Root package: `github.com/lmc
 Releases are built and published automatically on every push to `main` when CI workflows succeed.
 Cross-compiled for Linux (x64/arm64), macOS (arm64/x64), and Windows (x64).
 - [update-sample-suite.md](update-sample-suite.md): canonical sample-suite update and all-port verification rule.
+
+- [Rule entries v6](07-rule-entries.md): R49 loader/API, gates and vector pins; supersedes v5-only notes.

@@ -277,6 +277,7 @@ func (a *asm) fileCustom(schema []byte, version uint16, magic string) []byte {
 		_ = binary.Write(&buf, binary.BigEndian, uint16(l[2]))
 	}
 
+	_ = binary.Write(&buf, binary.BigEndian, uint16(0)) // v6 entries
 	return buf.Bytes()
 }
 
@@ -501,7 +502,7 @@ func TestStructuredLoops(t *testing.T) {
 	// Range ending at MaxInt64 does not overflow
 	{
 		a := newAsm()
-		a.local("int", 1).local("int", 1).pushInt(math.MaxInt64 - 1).pushInt(math.MaxInt64).
+		a.local("int", 1).local("int", 1).pushInt(math.MaxInt64-1).pushInt(math.MaxInt64).
 			u8(lmcode.OpForRange).u16(0).u16(1).i32(17).
 			ctx("t", "Trace").u8(lmcode.OpLoadLocal).u16(0).method(tInt, 1).
 			u8(lmcode.OpForNext).u16(1).i32(-17).halt()
@@ -515,7 +516,7 @@ func TestStructuredLoops(t *testing.T) {
 	// Range starting at MinInt64 does not overflow
 	{
 		a := newAsm()
-		a.local("int", 1).local("int", 1).pushInt(math.MinInt64).pushInt(math.MinInt64 + 2).
+		a.local("int", 1).local("int", 1).pushInt(math.MinInt64).pushInt(math.MinInt64+2).
 			u8(lmcode.OpForRange).u16(0).u16(1).i32(17).
 			ctx("t", "Trace").u8(lmcode.OpLoadLocal).u16(0).method(tInt, 1).
 			u8(lmcode.OpForNext).u16(1).i32(-17).halt()

@@ -10,7 +10,7 @@ import (
 	lmcode "github.com/lmctl-ai/lmcode-go"
 )
 
-func TestAnnotatedSAMRuleRunsAsInlinedV5Code(t *testing.T) {
+func TestAnnotatedSAMRuleRunsAsInlinedV6Code(t *testing.T) {
 	schema, err := os.ReadFile("testdata/rule-methods/schema.json")
 	if err != nil {
 		t.Fatal(err)
@@ -19,8 +19,8 @@ func TestAnnotatedSAMRuleRunsAsInlinedV5Code(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.HasPrefix(bytecode, []byte("DSLB\x00\x05")) {
-		t.Fatal("expected bytecode v5")
+	if !bytes.HasPrefix(bytecode, []byte("DSLB\x00\x06")) {
+		t.Fatal("expected bytecode v6")
 	}
 	var captured []int64
 	reg := lmcode.NewRegistryWithoutStd()

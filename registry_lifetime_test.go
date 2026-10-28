@@ -38,7 +38,7 @@ func TestProgramUsesBoundRegistryAcrossAlternateRunArgument(t *testing.T) {
 	if _, err := constructor.Fn(nil); err != nil {
 		t.Fatal(err)
 	}
-	p := &Program{code: []byte{OpHalt}, registry: a}
+	p := &Program{region: region{code: []byte{OpHalt}}, registry: a}
 	if err := p.Run(NewContext(), b); err != nil {
 		t.Fatal(err)
 	}
