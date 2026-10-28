@@ -10,7 +10,7 @@ Repository: https://github.com/lmctl-ai/lmcode-go. Root package: `github.com/lmc
 | [01-purpose-and-place.md](01-purpose-and-place.md) | Purpose, scope, and relationship with Go host applications |
 | [02-decisions.md](02-decisions.md) | Architectural decisions, zero third-party dependencies, byte strings |
 | [03-build-run-test.md](03-build-run-test.md) | Building, running unit tests, 51 core vectors, 267 stdlib v3 vectors |
-| [04-gotchas.md](04-gotchas.md) | Schema byte hash binding, LF line endings, version 5 invariants |
+| [04-gotchas.md](04-gotchas.md) | Schema byte hash binding, LF line endings, version 6 invariants |
 | [05-open-items.md](05-open-items.md) | Planned improvements and sibling SDK alignment |
 | [06-stdlib-catalog.md](06-stdlib-catalog.md) | Canonical std v3 surface, container/JSON rules, locks, and verification |
 

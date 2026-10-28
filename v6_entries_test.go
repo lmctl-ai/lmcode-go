@@ -149,3 +149,18 @@ func TestV6CallLocatedErrorAndVoid(t *testing.T) {
 		t.Fatal(v, e)
 	}
 }
+
+// WP11: entry names are unique.
+func TestV6DuplicateEntryName(t *testing.T) {
+	b := entryFixture(1, 3, 0, "interface Step(int) -> int", []byte{4, 0, 0, 17})
+	record := 12 + 2 + 2 + 5 + 2 + 4 + 4 + 4 + 10
+	count := len(b) - record - 2
+	d := append([]byte{}, b[:count]...)
+	d = append(d, 0, 2)
+	d = append(d, b[count+2:]...)
+	d = append(d, b[count+2:]...)
+	_, err := lmcode.Load(d, entrySchema, lmcode.NewRegistry())
+	if err == nil || !strings.Contains(err.Error(), "duplicate entry name 'rule'") {
+		t.Fatalf("duplicate entry name accepted: %v", err)
+	}
+}

@@ -636,6 +636,9 @@ func TestLoaderRejections(t *testing.T) {
 	// Unpaired WHILE_BEGIN
 	assertError(t, "unpaired WHILE_BEGIN", load(newAsm().u8(lmcode.OpWhileBegin).file(schemaBytes)), "unclosed WHILE_BEGIN")
 
+	// WP11: a hidden local is compiler-owned even when no loop uses it
+	assertError(t, "hidden store", load(newAsm().local("int", 1).pushInt(0).u8(lmcode.OpStoreLocal).u16(0).halt().file(schemaBytes)), "writes compiler-owned loop local 0")
+
 	// Read-only range slot
 	assertError(t, "read-only range slot", load(newAsm().local("int", 1).local("int", 1).pushInt(0).pushInt(1).
 		u8(lmcode.OpForRange).u16(0).u16(1).i32(10).u8(lmcode.OpStoreLocal).u16(0).u8(lmcode.OpForNext).u16(1).i32(-10).halt().file(schemaBytes)), "read-only range slot")

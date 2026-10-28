@@ -428,6 +428,11 @@ func LoadProgram(bytecode, schemaBytes []byte, reg *Registry) (*Program, error) 
 		if e != nil {
 			return nil, e
 		}
+		for _, prev := range p.entries {
+			if prev.Name == name {
+				return nil, NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("duplicate entry name '%s'", name))
+			}
+		}
 		readEntry := func() (Entry, error) {
 			entry := Entry{Name: name}
 			annotationIndex, e := r.u32()
@@ -884,6 +889,9 @@ func (p *Program) verify(returns *string) error {
 				if slot == l.counter || slot == l.end {
 					return NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("STORE_LOCAL at offset %d writes a read-only range slot %d", in.pc, slot))
 				}
+			}
+			if p.locals[slot].Hidden {
+				return NewError(LOAD_BAD_BYTECODE, fmt.Sprintf("STORE_LOCAL at offset %d writes compiler-owned loop local %d", in.pc, slot))
 			}
 		}
 	}

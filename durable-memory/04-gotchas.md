@@ -2,7 +2,7 @@
 
 - Bytecode is bound to exact schema bytes; changing whitespace or line endings in a schema changes its SHA-256 hash. Line endings in `.gitattributes` are pinned to LF across all conformance files (`*.json`, `*.dsl`, `*.expect`).
 - Vector lock verification on Windows: MSYS2/Git-for-Windows `sha256sum` outputs `*` in binary mode and emits `\r\n`. `scripts/sync-vectors.sh` normalizes ` *` to `  ` and strips `\r` before the second hash stage so digest calculation is strictly platform-independent.
-- Bytecode version 5 only: no backward compatibility with v3/v4; older and newer formats are refused at load time with `LOAD_BAD_BYTECODE`.
+- Bytecode version 6 only (R49 rule entries): no backward compatibility with v5 or earlier; older and newer formats are refused at load time with `LOAD_BAD_BYTECODE`.
 - Go integer division: native Go defines `MinInt64 / -1` as `MinInt64` and `MinInt64 % -1` as zero, without a panic. The VM's explicit guards preserve these same results and make cross-SDK wraparound behavior visible.
 - String handling: never range over VM strings as runes. VM strings are raw byte sequences.
 - Resource limits: the VM imposes no memory or execution time limits (no stack cap, no locals cap, no string cap). Hosts enforce domain and resource policy in their process environment.
