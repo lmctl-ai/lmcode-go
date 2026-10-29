@@ -1,0 +1,24 @@
+# Run from the repository root with lmscript test.lms or lmctl test.lms.
+set_env("CGO_ENABLED", "0");
+fn step(command) {
+  result = system(command, {timeoutMs:600000});
+  print(result.stdout); print(result.stderr);
+  assert(result.code == 0, "failed: " + json_stringify(command));
+  return result;
+}
+step(["bash", "scripts/sync-std.sh", "--verify"]);
+step(["go", "test", "./..."]);
+mkdir("bin");
+ext = ""; if (env("RUNNER_OS") == "Windows") { ext = ".exe"; }
+for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}]) {
+  step(["go", "build", "-trimpath", "-o", "bin/" + p.name + ext, p.source]);
+}
+step([path_join(Directory, "bin/conformance" + ext), "conformance/vectors"]);
+step([path_join(Directory, "bin/conformance" + ext), "conformance/stdlib-vectors"]);
+step(["bash", "scripts/compile-examples.sh"]);
+step([path_join(Directory, "bin/rule-entries" + ext), "bin/rule-entries.dslb"]);
+result = step([path_join(Directory, "bin/greeter" + ext), "bin/greeter.dslb", "examples/greeter/schema.json"]);
+assert(trim(result.stdout) == "Hello from Go DSL at 2026-10-24", "greeter output differs");
+result = step([path_join(Directory, "bin/greeter" + ext), "--host-signatures"]);
+assert(trim(result.stdout) == "context g: Greeter\nfn now() -> string\nmethod Greeter.say(string) -> void", "greeter signatures differ");
+println("PASS greeter and annotated interface examples");

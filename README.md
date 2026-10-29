@@ -1,6 +1,6 @@
 # lmcode-go
 
-The Go runtime for lmscript `_dsl_` bytecode: loader, verifier, stack VM, and typed host registry in package `lmcode`.
+The Go runtime for lmscript `_lmcode_` bytecode: loader, verifier, stack VM, and typed host registry in package `lmcode`.
 Go 1.26+, standard library only, zero third-party dependencies (`go.mod` has no `require`). Builds cleanly with `CGO_ENABLED=0` into static binaries.
 
 ## Status
@@ -10,7 +10,7 @@ Experimental. The current runtime reads bytecode version 6 only; older and newer
 
 ## What it is
 
-lmscript compiles a `_dsl_` block (a small strongly typed configuration language whose names come from a JSON schema) into a
+lmscript compiles a `_lmcode_` block (a small strongly typed configuration language whose names come from a JSON schema) into a
 portable bytecode file (`.dslb`). A host program written in Go imports `github.com/lmctl-ai/lmcode-go`, implements the schema's
 objects and functions in an `lmcode.Registry`, loads the file with the exact schema bytes, and runs the chunk once per event with an
 `lmcode.Context` of live host objects. The host owns the process, the objects, and their lifetime; the chunk only calls what
@@ -171,5 +171,12 @@ depth unconditionally, even without loops. Version 6 is the only accepted format
 
 The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
 `go test ./...` covers those vectors and direct loader/API controls. See
-[rule-entry notes](durable-memory/07-rule-entries.md). Samples keep their old
-runtime pins until their separate migration; no samples change in this task.
+[rule-entry notes](durable-memory/07-rule-entries.md). Samples pin independently reviewed module versions in go.mod/go.sum.
+
+## lmscript tests and automatic releases
+
+Install Go 1.26, Node 24 and `npm install -g @lmctl-ai/lmctl`. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
+
+Every main push builds with CGO_ENABLED=0 and tests on Linux x64/arm64, macOS x64/arm64 and Windows x64, then publishes native executables, licenses and SHA256SUMS. Pull requests run the same checks without publishing.
+
+`examples/rule-entries/rules.lms` defines `@increment fn next(value: int) -> int implements Score`. The Go host selects the annotation and calls it with 41, asserting 42 before running any body. Tests also compile and execute the greeter, unit tests and both conformance catalogs. Releases contain greeter, conformance and rule-entries binaries.

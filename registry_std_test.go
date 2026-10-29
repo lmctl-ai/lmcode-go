@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -82,6 +85,24 @@ func TestStdSchemaLock(t *testing.T) {
 	}
 }
 
+// npm exposes a command shim on Windows; execute its Node entry directly.
+func compilerCommand(t *testing.T, compiler string, args ...string) *exec.Cmd {
+	t.Helper()
+	if runtime.GOOS == "windows" && strings.HasSuffix(strings.ToLower(compiler), ".cmd") {
+		shim, err := os.ReadFile(compiler)
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := regexp.MustCompile(`(?i)%dp0%[\\/]([^"\r\n]+)"\s+%\*`).FindSubmatch(shim)
+		if len(match) != 2 {
+			t.Fatalf("unsupported npm compiler shim: %s", compiler)
+		}
+		entry := filepath.Join(filepath.Dir(compiler), string(match[1]))
+		return exec.Command("node", append([]string{entry}, args...)...)
+	}
+	return exec.Command(compiler, args...)
+}
+
 func TestPublishedCompilerStdSignatures(t *testing.T) {
 	compiler := os.Getenv("LMSCRIPT_BIN")
 	if compiler == "" {
@@ -91,7 +112,7 @@ func TestPublishedCompilerStdSignatures(t *testing.T) {
 			t.Skip("lmscript is not installed; CI installs the published compiler")
 		}
 	}
-	output, err := exec.Command(compiler, "--dsl-signatures", "std/lmcode-std.schema.json").Output()
+	output, err := compilerCommand(t, compiler, "--dsl-signatures", "std/lmcode-std.schema.json").Output()
 	if err != nil {
 		t.Fatalf("lmscript --dsl-signatures: %v", err)
 	}
@@ -115,7 +136,7 @@ func TestCompilerDefaultCatalogParity(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte(emptyHost), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	output, err := exec.Command(compiler, "--dsl-signatures", tmp).Output()
+	output, err := compilerCommand(t, compiler, "--dsl-signatures", tmp).Output()
 	if err != nil {
 		t.Fatalf("lmscript --dsl-signatures empty host: %v", err)
 	}

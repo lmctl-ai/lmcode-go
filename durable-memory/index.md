@@ -1,6 +1,6 @@
 # lmcode-go notes
 
-Go runtime and SDK for lmscript `_dsl_` bytecode. The package provides a dependency-free loader, structural verifier, stack VM, typed host registry, and shared conformance runner.
+Go runtime and SDK for lmscript `_lmcode_` bytecode. The package provides a dependency-free loader, structural verifier, stack VM, typed host registry, and shared conformance runner.
 Repository: https://github.com/lmctl-ai/lmcode-go. Root package: `github.com/lmctl-ai/lmcode-go`. Toolchain: Go 1.26+.
 
 ## Document map
@@ -33,3 +33,5 @@ Cross-compiled for Linux (x64/arm64), macOS (arm64/x64), and Windows (x64).
 - [update-sample-suite.md](update-sample-suite.md): canonical sample-suite update and all-port verification rule.
 
 - [Rule entries v6](07-rule-entries.md): R49 loader/API, gates and vector pins; supersedes v5-only notes.
+
+- [lmscript tests and releases](08-lmscript-releases.md)
