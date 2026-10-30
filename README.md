@@ -86,11 +86,11 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Standard library catalog
 
-`NewRegistry()` installs the canonical lmcode std v3 catalog (181 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v3 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
+`NewRegistry()` installs the canonical lmcode std v3 catalog (182 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v3 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
 
 The original string, math, collection, and file contracts remain. V2 added typed insertion-ordered `IntMap`/`FloatMap`; Int/Float/Str stacks and queues; stable min-first priority queues with insertion-order ties and signed-zero priority equality; and immutable `Json` values created by strict `json_parse`. V3 adds strict Base64/hex byte codecs and independent insertion-order `keys()`/`values()` snapshots on all three maps. JSON preserves number/string token spelling and object order in `to_json`, rejects malformed UTF-8/duplicate decoded keys/nonfinite numbers/depth over 256, and uses the shared 65,536-object run arena. Containers use the same arena and retain the documented bounds/empty errors. Strings remain raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only.
 
-Published lmscript `0.2.426` reports 72 default signatures for an empty host. The scratch build of lmctl-mono main at `fa04890c` reports 171 defaults, while its explicit schema path recognizes all 181 v3 declarations. The Go tests verify explicit compiler/schema parity and the registry against the v3 schema; they skip the default-catalog parity probe until lmctl-mono registers all 181 defaults.
+Compiler bundles can lag SDK additions. The tests verify the explicit canonical schema and registry signatures; the optional default-catalog probe reports when the installed compiler has not yet bundled the new declaration.
 
 The detailed Go v3 semantics and verification record are in
 [durable-memory/06-stdlib-catalog.md](durable-memory/06-stdlib-catalog.md).
@@ -101,7 +101,7 @@ The collections and testing catalogs are declared in `stdlib/collections.schema-
 
 Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
 
-The root `lmcode` package owns the canonical 181-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
+The root `lmcode` package owns the canonical 182-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
 
 ## Build and test
 
@@ -180,3 +180,7 @@ Install Go 1.26, Node 24 and `npm install -g @lmctl-ai/lmctl`. From this reposit
 Every main push builds with CGO_ENABLED=0 and tests on Linux x64/arm64, macOS x64/arm64 and Windows x64, then publishes native executables, licenses and SHA256SUMS. Pull requests run the same checks without publishing.
 
 `examples/rule-entries/rules.lms` defines `@increment fn next(value: int) -> int implements Score`. The Go host selects the annotation and calls it with 41, asserting 42 before running any body. Tests also compile and execute the greeter, unit tests and both conformance catalogs. Releases contain greeter, conformance and rule-entries binaries.
+
+## Text templates
+
+The standard `template_render(string, Json) -> string` function renders arbitrary text with nested context, indexed lists, loops and boolean conditions. Inserted values remain literal. See the [portable contract and examples](std/template.md).

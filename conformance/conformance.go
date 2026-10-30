@@ -65,8 +65,8 @@ func NewStub(stdMode ...bool) *Stub {
 func (s *Stub) initRegistry(useStd bool) {
 	// The catalog and fixture adapters are ordinary host callbacks, shared by both vector suites.
 	if useStd {
-		if len(s.Reg.StdSignatures()) != 181 {
-			panic(fmt.Sprintf("default std signature count = %d, want 181", len(s.Reg.StdSignatures())))
+		if len(s.Reg.StdSignatures()) != 182 {
+			panic(fmt.Sprintf("default std signature count = %d, want 182", len(s.Reg.StdSignatures())))
 		}
 		if err := stdlib.RegisterTesting(s.Reg, &s.Output); err != nil {
 			panic(err)

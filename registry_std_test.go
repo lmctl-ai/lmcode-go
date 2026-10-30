@@ -208,7 +208,7 @@ func TestRegistryStdDefaultOptOutAndSelfCheck(t *testing.T) {
 
 func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	r := lmcode.NewRegistry()
-	if len(r.StdSignatures()) != 181 {
+	if len(r.StdSignatures()) != 182 {
 		t.Fatalf("default std count = %d", len(r.StdSignatures()))
 	}
 	if err := lmcode.RegisterTesting(r, nil); err != nil {
@@ -218,7 +218,7 @@ func TestTestingCatalogRemainsHostOptional(t *testing.T) {
 	if len(host) != 2 || host[0] != "fn assert_close(float, float, float) -> void" || host[1] != "fn print(string) -> void" {
 		t.Fatalf("testing host signatures = %v", host)
 	}
-	if len(r.StdSignatures()) != 181 {
+	if len(r.StdSignatures()) != 182 {
 		t.Fatalf("std count after testing = %d", len(r.StdSignatures()))
 	}
 	if r.MatchesSchemaSignatures(r.StdSignatures()) {

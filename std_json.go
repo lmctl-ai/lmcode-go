@@ -530,6 +530,15 @@ func RegisterJSON(r *Registry, arenas ...*Collections) error {
 	}); err != nil {
 		return err
 	}
+	if err := r.registerBuiltinFunction("template_render", []string{"string", "Json"}, "string", func(args []Value) (Value, error) {
+		result, err := RenderTemplate(args[0].Str, args[1].Obj.(*JSON))
+		if err != nil {
+			return None(), err
+		}
+		return String(result), nil
+	}); err != nil {
+		return err
+	}
 	methods := []struct {
 		name    string
 		params  []string
