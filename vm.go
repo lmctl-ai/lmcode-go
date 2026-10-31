@@ -334,7 +334,9 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 				}
 				var res Value
 				var err error
-				if hasDryNull(args) {
+				// SDK sink conversion applies its own provenance and nullable contract.
+				conversion := (imp.fn.Name == "lmcode_return_set" || imp.fn.Name == "lmcode_return_put") && reg.builtinFunctions["fn "+imp.fn.Name+imp.fn.Sig.Text()]
+				if (!ctx.Dry() || imp.fn.DryFn != nil) && !(ctx.Dry() && conversion) && hasDryNull(args) {
 					return NewHostError("dry null cannot be passed to a host callback")
 				}
 				if ctx.Dry() {
@@ -377,9 +379,6 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 				if self.Kind == kindDryNull && !self.isDryNull() {
 					return NewHostError("invalid dry null provenance in method receiver")
 				}
-				if hasDryNull(args) {
-					return NewHostError("dry null cannot be passed to a host callback")
-				}
 				if ctx.Dry() && imp.method.DryFn == nil {
 					res, dummyErr := reg.dryDummy(imp.method.Sig.Returns)
 					if dummyErr != nil {
@@ -390,8 +389,11 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 					}
 					break
 				}
+				if hasDryNull(args) {
+					return NewHostError("dry null cannot be passed to a host callback")
+				}
 				if self.isDryNull() {
-					return NewHostError("dry null cannot be passed as a method receiver")
+					return NewHostError(fmt.Sprintf("method %s.%s requires a concrete receiver after dry null", imp.typeName, imp.methodName))
 				}
 				if self.Kind != KindObj || self.Type != imp.typeName {
 					kindDesc := self.KindName()
