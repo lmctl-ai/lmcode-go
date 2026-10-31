@@ -14,7 +14,7 @@ lmscript compiles a `_lmcode_` block (a small strongly typed configuration langu
 portable bytecode file (`.dslb`). A host program written in Go imports `github.com/lmctl-ai/lmcode-go`, implements the schema's
 objects and functions in an `lmcode.Registry`, loads the file with the exact schema bytes, and runs the chunk once per event with an
 `lmcode.Context` of live host objects. The host owns the process, the objects, and their lifetime; the chunk only calls what
-the registry offers. lmscript never executes the DSL; this SDK never reads the schema's content, only its bytes (for the
+the registry offers. lmscript never executes the lmcode program; this SDK never reads the schema's content, only its bytes (for the
 SHA-256 binding).
 
 ## Gallery
@@ -27,7 +27,7 @@ SHA-256 binding).
 | **Greeter Example Host** | **Same Bytecode, Four Runtimes** |
 | --- | --- |
 | <img src="docs/images/greeter-example.png" width="440" alt="Greeter Example Host"> | <img src="docs/images/same-bytecode-four-runtimes.png" width="440" alt="Same Bytecode, Four Runtimes"> |
-| Minimal embedding host compiling and executing DSL logic in pure Go.<br>`lmscript examples/greeter/build.lms && ./bin/greeter greeter.dslb` | Cross-language parity: C++, Rust, Go, and C# run the exact same bytecode.<br>`PASS Historical v5 parity; v6 ports are rolling out` |
+| Minimal embedding host compiling and executing lmcode logic in pure Go.<br>`lmscript examples/greeter/build.lms && ./bin/greeter greeter.dslb` | Cross-language parity: C++, Rust, Go, and C# run the exact same bytecode.<br>`PASS Historical v5 parity; v6 ports are rolling out` |
 
 ## Embedding it in twenty lines
 
@@ -149,7 +149,7 @@ Failures trap with `RUN_HOST` and `FUNCTION: PATH: OS_REASON`.
 Testing is outside std: hosts declare its separate fragment and explicitly call
 `stdlib.RegisterTesting(registry, writer)` for `print`/`assert_close`.
 
-## Rule entries (R47/R48/R49, DSLB v6)
+## Rule entries (R47/R48/R49, lmcode bytecode (DSLB v6))
 
 `Program.Entries()` returns source-order metadata copies with `Name`, `Annotation`,
 `Iface`, `Params` (type names) and `Returns`. An annotated rule is also independently
@@ -206,3 +206,7 @@ The full local gate also checks canonical return fixtures, declaration docs and
 production-copy mutations. The return-conformance executable is a fixture host,
 not a generic application dispatcher. No bytecode-version change or new Json
 builder API is involved.
+
+## Historical literal names
+
+The documentation calls the language lmcode. `--dsl`, `--dsl-schema` and `--dsl-signatures` are current host flag literals; `DSLB` is the bytecode magic and `DSLB v6` is the current format name; `.dslb` is the current bytecode filename extension. Other code-formatted API names, paths, manifest names and diagnostic text retain their current literal spellings.

@@ -1,6 +1,6 @@
-# Rule entries, DSLB v6 (2026-10-28)
+# Rule entries, lmcode bytecode (DSLB v6) (2026-10-28)
 
-R49 is authoritative (mono 0e621804 requirements/dsl-bytecode.md and design/dsl-language.md).
+R49 is authoritative (mono 0e621804 `requirements/dsl-bytecode.md` and `design/dsl-language.md`).
 Version 6 only. Entry metadata: Name, Annotation, Iface, Params, Returns. Entries()
 returns copies in source order. Call(index, ctx, registry, args, optionalStats)
 shares execute with Run, including bound registry, run scope, statistics and

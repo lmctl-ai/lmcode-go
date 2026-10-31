@@ -81,7 +81,7 @@ container, JSON-root, and `Json.keys()` allocations all charge the shared
 
 The optional `stdlib` package aliases the exported Go types and forwards the
 two group binders. `JSON` exposes immutable typed accessors and `ToJSON()` to
-host callbacks; DSL child handles point to the same tree nodes and do not
+host callbacks; lmcode child handles point to the same tree nodes and do not
 consume arena slots. No third-party Go modules or CGO are used.
 
 ## Verification and compiler status
