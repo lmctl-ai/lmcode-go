@@ -39,6 +39,17 @@ func run() int {
 		return lmcode.None(), lmcode.NewHostError("preview failed")
 	})
 	_ = registry.Function("entry_fail", nil, "void", entryFail, lmcode.Dry(previewFail))
+	_ = registry.Function("wp90_Json", nil, "Json", lmcode.Function(func([]lmcode.Value) (lmcode.Value, error) {
+		return lmcode.None(), lmcode.NewHostError("real dummy callback ran")
+	}))
+	_ = registry.Function("wp90_consume", []string{"Json"}, "int", lmcode.Function(func([]lmcode.Value) (lmcode.Value, error) {
+		return lmcode.None(), lmcode.NewHostError("real consumer ran")
+	}))
+	method := lmcode.Method(func(any, []lmcode.Value) (lmcode.Value, error) {
+		return lmcode.None(), lmcode.NewHostError("preview received dry null")
+	})
+	_ = registry.Method("Json", "wp90_consume", []string{"Json"}, "int", method)
+	_ = registry.Method("Json", "wp90_preview", []string{"Json"}, "int", method, lmcode.Dry(method))
 	schema, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		return lmcode.FailureFrame(os.Stdout, "cli", err)
