@@ -28,11 +28,17 @@ func run() int {
 	}
 	registry := lmcode.NewRegistry()
 	context := lmcode.NewContext()
+	context.SetDry(results.Dry())
 	counter := int64(0)
-	_ = registry.Function("next_counter", nil, "int", func([]lmcode.Value) (lmcode.Value, error) { counter++; return lmcode.Int(counter), nil })
-	_ = registry.Function("entry_fail", nil, "void", func([]lmcode.Value) (lmcode.Value, error) {
+	nextCounter := lmcode.Function(func([]lmcode.Value) (lmcode.Value, error) { counter++; return lmcode.Int(counter), nil })
+	_ = registry.Function("next_counter", nil, "int", nextCounter)
+	entryFail := lmcode.Function(func([]lmcode.Value) (lmcode.Value, error) {
 		return lmcode.None(), lmcode.NewHostError("native entry failure")
 	})
+	previewFail := lmcode.Function(func([]lmcode.Value) (lmcode.Value, error) {
+		return lmcode.None(), lmcode.NewHostError("preview failed")
+	})
+	_ = registry.Function("entry_fail", nil, "void", entryFail, lmcode.Dry(previewFail))
 	schema, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		return lmcode.FailureFrame(os.Stdout, "cli", err)

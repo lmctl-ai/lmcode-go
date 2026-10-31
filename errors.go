@@ -19,12 +19,14 @@ const (
 
 // Error represents a load, verify or run-time failure in lmcode.
 type Error struct {
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-	HasLocation bool   `json:"-"`
-	HasColumn   bool   `json:"-"`
-	Line        uint32 `json:"line,omitempty"`
-	Column      uint16 `json:"column,omitempty"`
+	Code             string `json:"code"`
+	Message          string `json:"message"`
+	HasLocation      bool   `json:"-"`
+	HasColumn        bool   `json:"-"`
+	HasInvocationDry bool   `json:"-"`
+	InvocationDry    bool   `json:"-"`
+	Line             uint32 `json:"line,omitempty"`
+	Column           uint16 `json:"column,omitempty"`
 }
 
 func (e *Error) Error() string {

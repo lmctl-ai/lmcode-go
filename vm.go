@@ -142,6 +142,39 @@ func intFromFloat(x float64) int64 {
 	return int64(x)
 }
 
+func validateDryResult(value Value, declared string) error {
+	valid := false
+	switch declared {
+	case "void":
+		valid = value.Kind == KindVoid
+	case "bool":
+		valid = value.Kind == KindBool
+	case "int", "integer", "int64":
+		valid = value.Kind == KindInt
+	case "float", "double", "number":
+		valid = value.Kind == KindFloat || value.Kind == KindInt
+	case "string":
+		valid = value.Kind == KindStr
+	case "null":
+		valid = value.isDryNull()
+	default:
+		valid = value.Kind == KindObj && value.Obj != nil && value.Type == declared
+	}
+	if !valid {
+		return NewHostError(fmt.Sprintf("dry callback for %s returned %s", declared, value.KindName()))
+	}
+	return nil
+}
+
+func hasDryNull(values []Value) bool {
+	for _, value := range values {
+		if value.Kind == kindDryNull {
+			return true
+		}
+	}
+	return false
+}
+
 // Run executes the loaded program once. The registry that bound the program at
 // Load time owns callbacks and run state; the argument is retained for legacy
 // callers and is used only for programs constructed without a bound registry.
@@ -299,7 +332,23 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 					}
 					args[i] = v
 				}
-				res, err := imp.fn.Fn(args)
+				var res Value
+				var err error
+				if hasDryNull(args) {
+					return NewHostError("dry null cannot be passed to a host callback")
+				}
+				if ctx.Dry() {
+					if imp.fn.DryFn == nil {
+						res, err = reg.dryDummy(imp.fn.Sig.Returns)
+					} else {
+						res, err = imp.fn.DryFn(args)
+						if err == nil {
+							err = validateDryResult(res, imp.fn.Sig.Returns)
+						}
+					}
+				} else {
+					res, err = imp.fn.Fn(args)
+				}
 				if err != nil {
 					if e, ok := err.(*Error); ok {
 						return e
@@ -325,6 +374,25 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 				if err != nil {
 					return err
 				}
+				if self.Kind == kindDryNull && !self.isDryNull() {
+					return NewHostError("invalid dry null provenance in method receiver")
+				}
+				if hasDryNull(args) {
+					return NewHostError("dry null cannot be passed to a host callback")
+				}
+				if ctx.Dry() && imp.method.DryFn == nil {
+					res, dummyErr := reg.dryDummy(imp.method.Sig.Returns)
+					if dummyErr != nil {
+						return dummyErr
+					}
+					if res.Kind != KindVoid {
+						push(res)
+					}
+					break
+				}
+				if self.isDryNull() {
+					return NewHostError("dry null cannot be passed as a method receiver")
+				}
 				if self.Kind != KindObj || self.Type != imp.typeName {
 					kindDesc := self.KindName()
 					if self.Kind == KindObj {
@@ -332,7 +400,15 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 					}
 					return NewError(RUN_ERROR, fmt.Sprintf("method %s.%s called on a %s", imp.typeName, imp.methodName, kindDesc))
 				}
-				res, err := imp.method.Fn(self.Obj, args)
+				var res Value
+				if ctx.Dry() {
+					res, err = imp.method.DryFn(self.Obj, args)
+					if err == nil {
+						err = validateDryResult(res, imp.method.Sig.Returns)
+					}
+				} else {
+					res, err = imp.method.Fn(self.Obj, args)
+				}
 				if err != nil {
 					if e, ok := err.(*Error); ok {
 						return e
@@ -368,6 +444,11 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 					eq = a.Bool == b.Bool
 				case KindObj:
 					eq = a.Obj == b.Obj
+				case kindDryNull:
+					if !a.isDryNull() || !b.isDryNull() {
+						return NewHostError("invalid dry null provenance")
+					}
+					eq = a.Type == b.Type
 				}
 				if op == OpEq {
 					push(Bool(eq))

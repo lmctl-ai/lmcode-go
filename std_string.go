@@ -400,7 +400,7 @@ func RegisterString(r *Registry) error {
 		}},
 	}
 	for _, e := range entries {
-		if err := r.registerBuiltinFunction(e.n, e.p, e.t, e.f); err != nil {
+		if err := r.registerPureBuiltinFunction(e.n, e.p, e.t, e.f); err != nil {
 			return err
 		}
 	}

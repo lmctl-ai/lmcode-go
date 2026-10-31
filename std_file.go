@@ -104,13 +104,14 @@ func RegisterFile(r *Registry, arenas ...*Collections) error {
 	if len(arenas) > 0 && arenas[0] != nil {
 		arena = arenas[0]
 	}
-	if err := r.registerBuiltinFunction("file_read", []string{"string"}, "string", func(a []Value) (Value, error) {
+	fileRead := Function(func(a []Value) (Value, error) {
 		data, err := readRegular("file_read", a[0].Str)
 		if err != nil {
 			return None(), err
 		}
 		return Str(data), nil
-	}); err != nil {
+	})
+	if err := r.registerBuiltinFunction("file_read", []string{"string"}, "string", fileRead, Dry(fileRead)); err != nil {
 		return err
 	}
 	if err := r.registerBuiltinFunction("file_write", []string{"string", "string"}, "void", func(a []Value) (Value, error) {
@@ -129,7 +130,7 @@ func RegisterFile(r *Registry, arenas ...*Collections) error {
 	}); err != nil {
 		return err
 	}
-	if err := r.registerBuiltinFunction("file_exists", []string{"string"}, "bool", func(a []Value) (Value, error) {
+	fileExists := Function(func(a []Value) (Value, error) {
 		path, err := filePath("file_exists", a[0].Str)
 		if err != nil {
 			return None(), err
@@ -142,10 +143,11 @@ func RegisterFile(r *Registry, arenas ...*Collections) error {
 			return None(), fileFailure("file_exists", a[0].Str, statErr)
 		}
 		return Bool(info.Mode().IsRegular()), nil
-	}); err != nil {
+	})
+	if err := r.registerBuiltinFunction("file_exists", []string{"string"}, "bool", fileExists, Dry(fileExists)); err != nil {
 		return err
 	}
-	return r.registerBuiltinFunction("file_lines", []string{"string"}, "StrList", func(a []Value) (Value, error) {
+	fileLines := Function(func(a []Value) (Value, error) {
 		data, err := readRegular("file_lines", a[0].Str)
 		if err != nil {
 			return None(), err
@@ -156,4 +158,5 @@ func RegisterFile(r *Registry, arenas ...*Collections) error {
 		}
 		return value, nil
 	})
+	return r.registerBuiltinFunction("file_lines", []string{"string"}, "StrList", fileLines, Dry(fileLines))
 }

@@ -145,37 +145,41 @@ func (r *Registry) SetResultSink(s *ResultSink) error {
 }
 func registerResults(r *Registry) error {
 	for _, typ := range []string{"int", "float", "bool", "string", "Json", "StrList", "IntList", "FloatList", "StrMap", "IntMap", "FloatMap"} {
-		if err := r.Function("lmcode_return_set", []string{typ}, "void", func(a []Value) (Value, error) {
+		set := Function(func(a []Value) (Value, error) {
 			if r.runState.resultSink == nil {
 				return None(), NewHostError("lmcode return: no result sink")
 			}
 			return None(), r.runState.resultSink.Set(a[0])
-		}); err != nil {
+		})
+		if err := r.Function("lmcode_return_set", []string{typ}, "void", set, Dry(set)); err != nil {
 			return err
 		}
-		if err := r.Function("lmcode_return_put", []string{"string", typ}, "void", func(a []Value) (Value, error) {
+		put := Function(func(a []Value) (Value, error) {
 			if r.runState.resultSink == nil {
 				return None(), NewHostError("lmcode return: no result sink")
 			}
 			return None(), r.runState.resultSink.Put(a[0].Str, a[1])
-		}); err != nil {
+		})
+		if err := r.Function("lmcode_return_put", []string{"string", typ}, "void", put, Dry(put)); err != nil {
 			return err
 		}
 	}
-	if err := r.Function("lmcode_return_null", nil, "void", func(a []Value) (Value, error) {
+	setNull := Function(func(a []Value) (Value, error) {
 		if r.runState.resultSink == nil {
 			return None(), NewHostError("lmcode return: no result sink")
 		}
 		return None(), r.runState.resultSink.SetNull()
-	}); err != nil {
+	})
+	if err := r.Function("lmcode_return_null", nil, "void", setNull, Dry(setNull)); err != nil {
 		return err
 	}
-	return r.Function("lmcode_return_put_null", []string{"string"}, "void", func(a []Value) (Value, error) {
+	putNull := Function(func(a []Value) (Value, error) {
 		if r.runState.resultSink == nil {
 			return None(), NewHostError("lmcode return: no result sink")
 		}
 		return None(), r.runState.resultSink.PutNull(a[0].Str)
 	})
+	return r.Function("lmcode_return_put_null", []string{"string"}, "void", putNull, Dry(putNull))
 }
 func resultInvalid(path, reason string) error {
 	return NewHostError("lmcode return: invalid JSON value at " + path + ": " + reason)
@@ -378,6 +382,11 @@ func copyResultJSON(j *JSON, path string, active map[*JSON]bool) (*JSON, error) 
 func copyResultValue(v Value, path string) (*JSON, error) {
 	switch v.Kind {
 	case KindVoid:
+		return &JSON{kind: jsonNull}, nil
+	case kindDryNull:
+		if !v.isDryNull() {
+			return nil, resultInvalid(path, "handle")
+		}
 		return &JSON{kind: jsonNull}, nil
 	case KindInt:
 		return resultInt(v.Int, path)

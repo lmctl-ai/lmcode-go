@@ -206,7 +206,7 @@ func TestInvocationMetadata(t *testing.T) {
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a 水")
 	b := filepath.Join(dir, "b")
-	raw := `{"version":1,"mode":"builder","parts":[{"index":0,"file":` + resultQuote(a) + `},{"index":1,"file":` + resultQuote(b) + `}]}`
+	raw := `{"version":1,"mode":"builder","dry":false,"parts":[{"index":0,"file":` + resultQuote(a) + `},{"index":1,"file":` + resultQuote(b) + `}]}`
 	r, e := InvocationResultsFromMetadata([]byte(raw), []string{b, a})
 	mustResult(t, e)
 	regs := r.Registrations()
@@ -241,6 +241,52 @@ func TestInvocationMetadata(t *testing.T) {
 	t.Setenv("LMCODE_INVOCATION_FILE", "")
 	if _, e = InvocationResultsFromCommand([]string{a}); e == nil {
 		t.Fatal("empty env fell back")
+	}
+}
+
+func TestInvocationDryMetadataMarkerAndFailurePropagation(t *testing.T) {
+	dir := t.TempDir()
+	a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
+	single := `{"version":1,"mode":"single","dry":true,"parts":[{"index":0,"file":` + resultQuote(a) + `}]}`
+	r, err := InvocationResultsFromMetadata([]byte(single), []string{a})
+	mustResult(t, err)
+	if !r.Dry() {
+		t.Fatal("dry mode was not retained by collector")
+	}
+	reg := NewRegistry()
+	sink, err := r.Select(0, reg, ResultContract{})
+	mustResult(t, err)
+	mustResult(t, sink.Set(Int(2)))
+	mustResult(t, r.Complete(0))
+	var out bytes.Buffer
+	if status := r.WriteFrame(&out); status != 0 || out.String() != "LMCODE_RETURN_BEGIN\n{\"ok\":true,\"result\":2,\"dry\":true}\nLMCODE_RETURN_END\n" {
+		t.Fatalf("dry success = %d %q", status, out.String())
+	}
+
+	builder := `{"version":1,"mode":"builder","dry":true,"parts":[{"index":0,"file":` + resultQuote(a) + `},{"index":1,"file":` + resultQuote(b) + `}]}`
+	r, err = InvocationResultsFromMetadata([]byte(builder), []string{a, b})
+	mustResult(t, err)
+	part := 1
+	mustResult(t, r.Fail(&part, "run", NewHostError("preview failed")))
+	out.Reset()
+	if status := r.WriteFrame(&out); status != 3 || out.String() != "LMCODE_RETURN_BEGIN\n{\"ok\":false,\"phase\":\"run\",\"code\":\"RUN_HOST\",\"message\":\"preview failed\",\"part\":1,\"dry\":true}\nLMCODE_RETURN_END\n" {
+		t.Fatalf("dry failure = %d %q", status, out.String())
+	}
+
+	for _, bad := range []string{strings.Replace(single, `,"dry":true`, "", 1), strings.Replace(single, `"dry":true`, `"dry":1`, 1)} {
+		_, err = InvocationResultsFromMetadata([]byte(bad), []string{a})
+		if err == nil || err.Error() != "lmcode invocation: dry must be boolean" {
+			t.Fatalf("invalid dry metadata error = %v", err)
+		}
+	}
+	invalidParts := `{"version":1,"mode":"single","dry":true,"parts":[]}`
+	_, err = InvocationResultsFromMetadata([]byte(invalidParts), []string{a})
+	if err == nil {
+		t.Fatal("invalid dry parts were accepted")
+	}
+	out.Reset()
+	if status := FailureFrame(&out, "cli", err); status != 2 || !strings.Contains(out.String(), `,"dry":true}`) {
+		t.Fatalf("pre-collector dry failure = %d %q", status, out.String())
 	}
 }
 

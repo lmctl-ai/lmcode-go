@@ -30,6 +30,7 @@ type invocationFailure struct {
 // Do not copy a collector after use. Registrations are returned as owned copies.
 type InvocationResults struct {
 	builder       bool
+	dry           bool
 	writing       bool
 	registrations []InvocationRegistration
 	slots         []invocationSlot
@@ -37,6 +38,15 @@ type InvocationResults struct {
 }
 
 func invocationError(message string) error { return NewError(CLI_USAGE, "lmcode invocation: "+message) }
+func invocationDryError(err error, dry bool) error {
+	if !dry {
+		return err
+	}
+	native := invocationNativeError(err)
+	native.HasInvocationDry = true
+	native.InvocationDry = true
+	return native
+}
 func invocationKeys(n *JSON, allowed ...string) error {
 	if n == nil || n.kind != jsonObject {
 		return invocationError("object required")
@@ -66,14 +76,16 @@ func InvocationResultsFromMetadata(raw []byte, files []string) (*InvocationResul
 		}
 		return nil, invocationError(message)
 	}
-	n, err = copyResultJSON(n, "", map[*JSON]bool{})
-	if err != nil {
-		return nil, invocationError(err.Error())
+	if n == nil || n.kind != jsonObject {
+		return nil, invocationError("object required")
 	}
-	if err = invocationKeys(n, "version", "mode", "parts"); err != nil {
-		return nil, err
+	versionValue := jsonMemberValue(n, "version")
+	if versionValue != nil {
+		if _, err = copyResultJSON(versionValue, "/version", map[*JSON]bool{}); err != nil {
+			return nil, invocationError(err.Error())
+		}
 	}
-	v, ok := jsonInteger(jsonMemberValue(n, "version"))
+	v, ok := jsonInteger(versionValue)
 	if !ok || v != 1 {
 		return nil, invocationError("unsupported version")
 	}
@@ -81,46 +93,64 @@ func InvocationResultsFromMetadata(raw []byte, files []string) (*InvocationResul
 	if mode == nil || mode.kind != jsonString || (mode.text != "single" && mode.text != "builder") {
 		return nil, invocationError("invalid mode")
 	}
+	dryValue := jsonMemberValue(n, "dry")
+	if dryValue == nil || dryValue.kind != jsonBool {
+		return nil, invocationError("dry must be boolean")
+	}
+	dry := dryValue.boolean
+	fail := func(err error) (*InvocationResults, error) {
+		return nil, invocationDryError(err, dry)
+	}
+	n, err = copyResultJSON(n, "", map[*JSON]bool{})
+	if err != nil {
+		return fail(invocationError(err.Error()))
+	}
+	if err = invocationKeys(n, "version", "mode", "dry", "parts"); err != nil {
+		return fail(err)
+	}
 	parts := jsonMemberValue(n, "parts")
 	if parts == nil || parts.kind != jsonArray || len(parts.array) == 0 || mode.text == "single" && len(parts.array) != 1 {
-		return nil, invocationError("invalid parts")
+		return fail(invocationError("invalid parts"))
 	}
 	indices := map[string]int{}
 	for i, p := range parts.array {
 		if err = invocationKeys(p, "index", "file"); err != nil {
-			return nil, err
+			return fail(err)
 		}
 		index, ok := jsonInteger(jsonMemberValue(p, "index"))
 		if !ok || index != int64(i) {
-			return nil, invocationError("noncontiguous index")
+			return fail(invocationError("noncontiguous index"))
 		}
 		file := jsonMemberValue(p, "file")
 		if file == nil || file.kind != jsonString || strings.ContainsRune(file.text, 0) || !filepath.IsAbs(file.text) {
-			return nil, invocationError("file must be absolute")
+			return fail(invocationError("file must be absolute"))
 		}
 		if _, exists := indices[file.text]; exists {
-			return nil, invocationError("duplicate file")
+			return fail(invocationError("duplicate file"))
 		}
 		indices[file.text] = i
 	}
 	if len(files) != len(indices) {
-		return nil, invocationError("registration count mismatch")
+		return fail(invocationError("registration count mismatch"))
 	}
-	r := &InvocationResults{builder: mode.text == "builder", slots: make([]invocationSlot, len(files))}
+	r := &InvocationResults{builder: mode.text == "builder", dry: dry, slots: make([]invocationSlot, len(files))}
 	seen := map[int]bool{}
 	for _, file := range files {
 		index, ok := indices[file]
 		if !ok {
-			return nil, invocationError("extra registration")
+			return fail(invocationError("extra registration"))
 		}
 		if seen[index] {
-			return nil, invocationError("duplicate registration")
+			return fail(invocationError("duplicate registration"))
 		}
 		seen[index] = true
 		r.registrations = append(r.registrations, InvocationRegistration{strings.Clone(file), index})
 	}
 	return r, nil
 }
+
+// Dry reports the immutable mode copied from the invocation manifest.
+func (r *InvocationResults) Dry() bool { return r.dry }
 
 // InvocationResultsFromCommand reads the private environment descriptor when
 // present. Introspection paths must not call this execution-context constructor.
@@ -235,6 +265,9 @@ func invocationNativeError(err error) *Error {
 	return NewError(RUN_ERROR, "unknown error")
 }
 func failureJSON(phase string, e *Error, part *int) (string, error) {
+	return failureJSONDry(phase, e, part, false)
+}
+func failureJSONDry(phase string, e *Error, part *int, dry bool) (string, error) {
 	if _, err := failureExit(phase); err != nil {
 		return "", err
 	}
@@ -256,6 +289,9 @@ func failureJSON(phase string, e *Error, part *int) (string, error) {
 	}
 	if part != nil {
 		out += ",\"part\":" + strconv.Itoa(*part)
+	}
+	if dry {
+		out += ",\"dry\":true"
 	}
 	return out + "}", nil
 }
@@ -304,7 +340,8 @@ func emitInvocation(w io.Writer, payload string, code int) int {
 // FailureFrame is for errors before collector construction. Return immediately
 // with its status; never append a second frame after output has begun.
 func FailureFrame(w io.Writer, phase string, err error) int {
-	payload, e := failureJSON(phase, invocationNativeError(err), nil)
+	native := invocationNativeError(err)
+	payload, e := failureJSONDry(phase, native, nil, native.HasInvocationDry && native.InvocationDry)
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		return 4
@@ -330,7 +367,7 @@ func (r *InvocationResults) WriteFrame(w io.Writer) int {
 	payload := ""
 	code := 0
 	if r.failure != nil {
-		payload, _ = failureJSON(r.failure.phase, &r.failure.err, r.failure.part)
+		payload, _ = failureJSONDry(r.failure.phase, &r.failure.err, r.failure.part, r.dry)
 		code, _ = failureExit(r.failure.phase)
 	} else {
 		payload = "{\"ok\":true,\"result\":"
@@ -347,6 +384,9 @@ func (r *InvocationResults) WriteFrame(w io.Writer) int {
 			payload += r.slots[0].result.ToJSON()
 		}
 		payload += "}"
+		if r.dry {
+			payload = strings.TrimSuffix(payload, "}") + ",\"dry\":true}"
+		}
 	}
 	r.writing = true
 	return emitInvocation(w, payload, code)

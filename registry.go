@@ -27,24 +27,43 @@ type Function func(args []Value) (Value, error)
 // Method is a host method callable on a host object from the DSL.
 type Method func(self any, args []Value) (Value, error)
 
+type dryCallbackType interface{ Function | Method }
+
+// DrySlot wraps the optional implementation selected for one callback while
+// Context.Dry() is true. Its type parameter prevents using a method slot for a
+// function registration or vice versa.
+type DrySlot[T dryCallbackType] struct {
+	callback T
+	supplied bool
+}
+
+// Dry opts one callback into the dry slot. Passing the real callback opts into
+// a real read; a different callback supplies a preview.
+func Dry[T dryCallbackType](callback T) DrySlot[T] {
+	return DrySlot[T]{callback: callback, supplied: true}
+}
+
 // FunctionEntry stores a registered function, its signature, and its schema name.
 type FunctionEntry struct {
-	Name string
-	Sig  Signature
-	Fn   Function
+	Name  string
+	Sig   Signature
+	Fn    Function
+	DryFn Function
 }
 
 // MethodEntry stores a registered method, its signature, schema type, and method name.
 type MethodEntry struct {
-	Type string
-	Name string
-	Sig  Signature
-	Fn   Method
+	Type  string
+	Name  string
+	Sig   Signature
+	Fn    Method
+	DryFn Method
 }
 
 // Context holds live host objects for one execution of a Program.
 type Context struct {
 	objects map[string]any
+	dry     bool
 }
 
 // NewContext creates an empty Context.
@@ -68,6 +87,12 @@ func (c *Context) Get(name string) any {
 	return c.objects[name]
 }
 
+// SetDry copies the invocation mode into this VM context before execution.
+func (c *Context) SetDry(dry bool) { c.dry = dry }
+
+// Dry reports whether this context belongs to a dry invocation.
+func (c *Context) Dry() bool { return c != nil && c.dry }
+
 // Registry declares the schema's types, context objects, methods, and functions.
 type Registry struct {
 	functions           map[string]*FunctionEntry // canonical signature -> entry
@@ -78,6 +103,7 @@ type Registry struct {
 	stdSignatures       map[string]bool
 	stdInstalled        bool
 	stdCollections      *Collections
+	dryCollections      *Collections
 	explicitCollections bool
 	runState            *registryRunState
 }
@@ -96,6 +122,7 @@ func NewRegistry() *Registry {
 		builtinFunctions: make(map[string]bool),
 		builtinMethods:   make(map[string]bool),
 		stdSignatures:    make(map[string]bool),
+		dryCollections:   NewCollections(),
 		runState:         &registryRunState{},
 	}
 	_ = RegisterStd(r)
@@ -104,7 +131,7 @@ func NewRegistry() *Registry {
 
 // NewRegistryWithoutStd creates an empty registry for legacy or custom hosts.
 func NewRegistryWithoutStd() *Registry {
-	return &Registry{functions: make(map[string]*FunctionEntry), methods: make(map[string]*MethodEntry), contexts: make(map[string]string), builtinFunctions: make(map[string]bool), builtinMethods: make(map[string]bool), stdSignatures: make(map[string]bool), runState: &registryRunState{}}
+	return &Registry{functions: make(map[string]*FunctionEntry), methods: make(map[string]*MethodEntry), contexts: make(map[string]string), builtinFunctions: make(map[string]bool), builtinMethods: make(map[string]bool), stdSignatures: make(map[string]bool), dryCollections: NewCollections(), runState: &registryRunState{}}
 }
 
 // Context declares a context variable name and its schema type.
@@ -118,7 +145,20 @@ func (r *Registry) Context(name, typeName string) error {
 
 // Function registers a host function. Duplicate parameter tuples for the same name are refused;
 // distinct parameter tuples are overloads.
-func (r *Registry) Function(name string, params []string, returns string, fn Function) error {
+func (r *Registry) Function(name string, params []string, returns string, fn Function, drySlots ...DrySlot[Function]) error {
+	if fn == nil {
+		return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: function '%s' callback is empty", name))
+	}
+	if len(drySlots) > 1 {
+		return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: function '%s' accepts at most one dry callback", name))
+	}
+	var dryFn Function
+	if len(drySlots) == 1 {
+		if !drySlots[0].supplied || drySlots[0].callback == nil {
+			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: dry function '%s' callback is empty", name))
+		}
+		dryFn = drySlots[0].callback
+	}
 	sigParams := make([]string, len(params))
 	copy(sigParams, params)
 	sig := Signature{Params: sigParams, Returns: returns}
@@ -131,15 +171,29 @@ func (r *Registry) Function(name string, params []string, returns string, fn Fun
 
 	canonical := "fn " + name + sig.Text()
 	r.functions[canonical] = &FunctionEntry{
-		Name: name,
-		Sig:  sig,
-		Fn:   fn,
+		Name:  name,
+		Sig:   sig,
+		Fn:    fn,
+		DryFn: dryFn,
 	}
 	return nil
 }
 
 // Method registers a host method on typeName. Duplicate parameter tuples for the same type and name are refused.
-func (r *Registry) Method(typeName, name string, params []string, returns string, fn Method) error {
+func (r *Registry) Method(typeName, name string, params []string, returns string, fn Method, drySlots ...DrySlot[Method]) error {
+	if fn == nil {
+		return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: method '%s.%s' callback is empty", typeName, name))
+	}
+	if len(drySlots) > 1 {
+		return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: method '%s.%s' accepts at most one dry callback", typeName, name))
+	}
+	var dryFn Method
+	if len(drySlots) == 1 {
+		if !drySlots[0].supplied || drySlots[0].callback == nil {
+			return NewError(LOAD_UNBOUND, fmt.Sprintf("registry: dry method '%s.%s' callback is empty", typeName, name))
+		}
+		dryFn = drySlots[0].callback
+	}
 	sigParams := make([]string, len(params))
 	copy(sigParams, params)
 	sig := Signature{Params: sigParams, Returns: returns}
@@ -152,36 +206,45 @@ func (r *Registry) Method(typeName, name string, params []string, returns string
 
 	canonical := "method " + typeName + "." + name + sig.Text()
 	r.methods[canonical] = &MethodEntry{
-		Type: typeName,
-		Name: name,
-		Sig:  sig,
-		Fn:   fn,
+		Type:  typeName,
+		Name:  name,
+		Sig:   sig,
+		Fn:    fn,
+		DryFn: dryFn,
 	}
 	return nil
 }
 
-func (r *Registry) registerBuiltinFunction(name string, params []string, returns string, fn Function) error {
+func (r *Registry) registerBuiltinFunction(name string, params []string, returns string, fn Function, drySlots ...DrySlot[Function]) error {
 	canonical := "fn " + name + Signature{Params: params, Returns: returns}.Text()
 	if r.builtinFunctions[canonical] {
 		return nil
 	}
-	if err := r.Function(name, params, returns, fn); err != nil {
+	if err := r.Function(name, params, returns, fn, drySlots...); err != nil {
 		return err
 	}
 	r.builtinFunctions[canonical], r.stdSignatures[canonical] = true, true
 	return nil
 }
 
-func (r *Registry) registerBuiltinMethod(typ, name string, params []string, returns string, fn Method) error {
+func (r *Registry) registerBuiltinMethod(typ, name string, params []string, returns string, fn Method, drySlots ...DrySlot[Method]) error {
 	canonical := "method " + typ + "." + name + Signature{Params: params, Returns: returns}.Text()
 	if r.builtinMethods[canonical] {
 		return nil
 	}
-	if err := r.Method(typ, name, params, returns, fn); err != nil {
+	if err := r.Method(typ, name, params, returns, fn, drySlots...); err != nil {
 		return err
 	}
 	r.builtinMethods[canonical], r.stdSignatures[canonical] = true, true
 	return nil
+}
+
+func (r *Registry) registerPureBuiltinFunction(name string, params []string, returns string, fn Function) error {
+	return r.registerBuiltinFunction(name, params, returns, fn, Dry(fn))
+}
+
+func (r *Registry) registerPureBuiltinMethod(typ, name string, params []string, returns string, fn Method) error {
+	return r.registerBuiltinMethod(typ, name, params, returns, fn, Dry(fn))
 }
 
 // RegisterStd installs the canonical built-in standard catalog once.
@@ -253,6 +316,9 @@ func (r *Registry) beginRun() error {
 	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
+	if r.dryCollections != nil {
+		r.dryCollections.Reset()
+	}
 	return nil
 }
 
@@ -263,8 +329,42 @@ func (r *Registry) endRun() {
 	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
+	if r.dryCollections != nil {
+		r.dryCollections.Reset()
+	}
 	if r.runState != nil {
 		r.runState.mu.Unlock()
+	}
+}
+
+func (r *Registry) dryDummy(declared string) (Value, error) {
+	switch declared {
+	case "void":
+		return None(), nil
+	case "null":
+		return dryNullValue(declared), nil
+	case "bool":
+		return Bool(true), nil
+	case "int", "integer", "int64":
+		return Int(0), nil
+	case "float", "double", "number":
+		return Float(0), nil
+	case "string":
+		return String(""), nil
+	case "StrList":
+		return r.dryCollections.object(declared, &StrList{})
+	case "IntList":
+		return r.dryCollections.object(declared, &IntList{})
+	case "FloatList":
+		return r.dryCollections.object(declared, &FloatList{})
+	case "StrMap":
+		return r.dryCollections.object(declared, &StrMap{values: make(map[string]string), positions: make(map[string]int), deleted: make(map[int]bool), fenwick: []int{0}})
+	case "IntMap":
+		return r.dryCollections.object(declared, &IntMap{data: newOrderedMap[int64]()})
+	case "FloatMap":
+		return r.dryCollections.object(declared, &FloatMap{data: newOrderedMap[float64]()})
+	default:
+		return dryNullValue(declared), nil
 	}
 }
 
@@ -307,6 +407,7 @@ func (r *Registry) SetStdOutput(output io.Writer) error {
 		}
 		return None(), nil
 	}
+	e.DryFn = e.Fn
 	return nil
 }
 

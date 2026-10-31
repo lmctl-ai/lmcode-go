@@ -521,7 +521,7 @@ func (p *jsonParser) value(depth int) (*JSON, error) {
 // Parsed roots and keys() lists share the collection arena supplied by RegisterStd.
 func RegisterJSON(r *Registry, arenas ...*Collections) error {
 	arena := groupCollections(r, arenas)
-	if err := r.registerBuiltinFunction("json_parse", []string{"string"}, "Json", func(args []Value) (Value, error) {
+	if err := r.registerPureBuiltinFunction("json_parse", []string{"string"}, "Json", func(args []Value) (Value, error) {
 		parsed, err := parseJSON(args[0].Str)
 		if err != nil {
 			return None(), err
@@ -530,7 +530,7 @@ func RegisterJSON(r *Registry, arenas ...*Collections) error {
 	}); err != nil {
 		return err
 	}
-	if err := r.registerBuiltinFunction("template_render", []string{"string", "Json"}, "string", func(args []Value) (Value, error) {
+	if err := r.registerPureBuiltinFunction("template_render", []string{"string", "Json"}, "string", func(args []Value) (Value, error) {
 		result, err := RenderTemplate(args[0].Str, args[1].Obj.(*JSON))
 		if err != nil {
 			return None(), err
@@ -612,7 +612,7 @@ func RegisterJSON(r *Registry, arenas ...*Collections) error {
 		{"to_json", nil, "string", func(self any, _ []Value) (Value, error) { return String(self.(*JSON).ToJSON()), nil }},
 	}
 	for _, method := range methods {
-		if err := r.registerBuiltinMethod("Json", method.name, method.params, method.returns, method.fn); err != nil {
+		if err := r.registerPureBuiltinMethod("Json", method.name, method.params, method.returns, method.fn); err != nil {
 			return err
 		}
 	}

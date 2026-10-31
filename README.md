@@ -179,7 +179,7 @@ The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
 
 ## Local gates and CI
 
-Install Go 1.26 and Node 24; put a coherent compiler build on a private PATH. Published compiler 0.2.444 predates the renamed inspection flags; it is not sufficient for this gate. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
+Install Go 1.26 and Node 24; put compiler 0.2.450 or a coherent mono-main build on a private PATH. The SDK gate checks the renamed inspection flags, invocation manifests, and dry markers. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
 
 The release workflow is manual-only under the 2026-10-31 operator ruling; main pushes do not publish releases. A separate test workflow, maintained concurrently, can run on pushes and pull requests. The full local gate is required before landing changes; manual workflow dispatch and release remain operator-owned.
 
@@ -220,9 +220,34 @@ not change entry HALT values. Shortest-round-trip binary64 formatting retains
 [contracts, ownership and lifecycle](durable-memory/08-result-sink.md).
 
 The full local gate includes pinned core/standard/return/invocation vectors,
-14 canonical native envelope goldens, malformed metadata, and production-copy
+19 canonical native envelope goldens, malformed metadata, and production-copy
 mutation controls. Sample adapter adoption is separate; do not repin a host
 that still calls removed reporting APIs.
+
+## Dry host invocations
+
+`InvocationResults` reads the required boolean `dry` field from the private
+manifest. Standalone commands without a manifest remain real. Copy the mode to
+the VM context before running any program or entry:
+
+```go
+ctx := lmcode.NewContext()
+ctx.SetDry(results.Dry())
+```
+
+Registrations keep one real callback and may add one typed dry slot. Without a
+slot, dry dispatch skips the callback and returns a fresh dummy matching its
+declared return type. `lmcode.Dry(preview)` supplies a preview; passing the real
+callback itself, such as `lmcode.Dry(readFixture)`, explicitly opts into that
+read during dry execution. The Go type parameter keeps function and method
+slots distinct. Real runs ignore the dry slot.
+
+Canonical pure computations, run-owned collection operations, result-sink
+writes, and regular-file reads have explicit dry policies. File writes and
+appends default to no effect. The collector adds `"dry":true` after the normal
+success keys or after failure location/part fields; real envelopes omit it.
+Dry nulls serialize as JSON null but preserve internal provenance, cannot be
+passed to callbacks, and still obey each program's result contract.
 
 ## Historical literal names
 

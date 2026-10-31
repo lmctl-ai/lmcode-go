@@ -230,7 +230,7 @@ type mapBinding[T any] struct {
 }
 
 func registerMap[T any](r *Registry, arena *Collections, b mapBinding[T]) error {
-	if err := r.registerBuiltinFunction(b.typeNameToName(), nil, b.typeName, func([]Value) (Value, error) {
+	if err := r.registerPureBuiltinFunction(b.typeNameToName(), nil, b.typeName, func([]Value) (Value, error) {
 		return arena.object(b.typeName, b.newMap())
 	}); err != nil {
 		return err
@@ -301,7 +301,7 @@ func registerMap[T any](r *Registry, arena *Collections, b mapBinding[T]) error 
 		}},
 	}
 	for _, method := range methods {
-		if err := r.registerBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
+		if err := r.registerPureBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
 			return err
 		}
 	}
@@ -324,7 +324,7 @@ func (b mapBinding[T]) typeNameToName() string {
 
 func registerStack[T any](r *Registry, arena *Collections, typeName, constructor, elementType string,
 	newObject func() any, items func(any) *[]T, from func(Value) T, to func(T) Value) error {
-	if err := r.registerBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
+	if err := r.registerPureBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
 		return err
 	}
 	methods := []struct {
@@ -377,7 +377,7 @@ func registerStack[T any](r *Registry, arena *Collections, typeName, constructor
 		}},
 	}
 	for _, method := range methods {
-		if err := r.registerBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
+		if err := r.registerPureBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
 			return err
 		}
 	}
@@ -386,7 +386,7 @@ func registerStack[T any](r *Registry, arena *Collections, typeName, constructor
 
 func registerQueue[T any](r *Registry, arena *Collections, typeName, constructor, elementType string,
 	newObject func() any, queue func(any) *queueData[T], from func(Value) T, to func(T) Value) error {
-	if err := r.registerBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
+	if err := r.registerPureBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
 		return err
 	}
 	methods := []struct {
@@ -435,7 +435,7 @@ func registerQueue[T any](r *Registry, arena *Collections, typeName, constructor
 		}},
 	}
 	for _, method := range methods {
-		if err := r.registerBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
+		if err := r.registerPureBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
 			return err
 		}
 	}
@@ -444,7 +444,7 @@ func registerQueue[T any](r *Registry, arena *Collections, typeName, constructor
 
 func registerPQ[T any](r *Registry, arena *Collections, typeName, constructor, elementType string,
 	newObject func() any, queue func(any) *priorityQueueData[T], from func(Value) T, to func(T) Value) error {
-	if err := r.registerBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
+	if err := r.registerPureBuiltinFunction(constructor, nil, typeName, func([]Value) (Value, error) { return arena.object(typeName, newObject()) }); err != nil {
 		return err
 	}
 	methods := []struct {
@@ -479,7 +479,7 @@ func registerPQ[T any](r *Registry, arena *Collections, typeName, constructor, e
 		{"clear", nil, typeName, func(self any, _ []Value) (Value, error) { queue(self).clear(); return Object(typeName, self), nil }},
 	}
 	for _, method := range methods {
-		if err := r.registerBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
+		if err := r.registerPureBuiltinMethod(typeName, method.name, method.params, method.returns, method.fn); err != nil {
 			return err
 		}
 	}

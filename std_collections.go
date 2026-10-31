@@ -133,7 +133,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		arena = arenas[0]
 	}
 	add := func(name string, params []string, returns string, fn Function) error {
-		return r.registerBuiltinFunction(name, params, returns, fn)
+		return r.registerPureBuiltinFunction(name, params, returns, fn)
 	}
 
 	if err := add("str_list", nil, "StrList", func([]Value) (Value, error) {
@@ -391,7 +391,7 @@ func RegisterCollections(r *Registry, arenas ...*Collections) error {
 		}},
 	}
 	for i, e := range methods {
-		if err := r.registerBuiltinMethod(e.typeName, methodNames[i], e.params, e.returns, e.fn); err != nil {
+		if err := r.registerPureBuiltinMethod(e.typeName, methodNames[i], e.params, e.returns, e.fn); err != nil {
 			return err
 		}
 	}

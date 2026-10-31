@@ -17,6 +17,10 @@ const (
 	KindObj
 )
 
+// kindDryNull is an SDK-created null placeholder for dry host results. Its
+// provenance bit prevents application code from forging a handle.
+const kindDryNull Kind = KindObj + 1
+
 // Synonyms matching reference names.
 const (
 	VOID  = KindVoid
@@ -29,13 +33,14 @@ const (
 
 // Value represents a typed DSL value.
 type Value struct {
-	Kind  Kind
-	Int   int64
-	Float float64
-	Str   string
-	Bool  bool
-	Obj   any
-	Type  string // schema type name of Obj
+	Kind              Kind
+	Int               int64
+	Float             float64
+	Str               string
+	Bool              bool
+	Obj               any
+	Type              string // schema type name of Obj
+	dryNullProvenance bool
 }
 
 // None returns a void/none Value.
@@ -93,6 +98,12 @@ func Obj(typeName string, obj any) Value {
 	return Value{Kind: KindObj, Type: typeName, Obj: obj}
 }
 
+func dryNullValue(typeName string) Value {
+	return Value{Kind: kindDryNull, Type: typeName, dryNullProvenance: true}
+}
+
+func (v Value) isDryNull() bool { return v.Kind == kindDryNull && v.dryNullProvenance }
+
 // KindName returns the schema name of this value's kind.
 func (v Value) KindName() string {
 	switch v.Kind {
@@ -108,6 +119,8 @@ func (v Value) KindName() string {
 		return "bool"
 	case KindObj:
 		return "object"
+	case kindDryNull:
+		return "dry null"
 	default:
 		return "unknown"
 	}

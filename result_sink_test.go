@@ -316,3 +316,25 @@ func completedResult(t *testing.T) *InvocationResults {
 	mustResult(t, r.Complete(0))
 	return r
 }
+
+func TestDryNullRetainsProvenanceAndResultContract(t *testing.T) {
+	dummy, err := NewRegistry().dryDummy("Opaque")
+	mustResult(t, err)
+	optional, err := ResultContractFromSchema([]byte(`{"dsl.schema":2,"result":{"type":"Json","nullable":true}}`))
+	mustResult(t, err)
+	sink := NewResultSink(optional)
+	mustResult(t, sink.Set(dummy))
+	if sink.JSON() != "null" {
+		t.Fatalf("nullable dry null = %s", sink.JSON())
+	}
+
+	required, err := ResultContractFromSchema([]byte(`{"dsl.schema":2,"result":{"type":"Json"}}`))
+	mustResult(t, err)
+	if err = NewResultSink(required).Set(dummy); err == nil || !strings.Contains(err.Error(), "expected Json; got null") {
+		t.Fatalf("nonnullable dry null contract error = %v", err)
+	}
+	forged := Value{Kind: kindDryNull, Type: "Opaque"}
+	if err = NewResultSink(ResultContract{}).Set(forged); err == nil || !strings.Contains(err.Error(), "invalid JSON value") {
+		t.Fatalf("forged dry null accepted: %v", err)
+	}
+}

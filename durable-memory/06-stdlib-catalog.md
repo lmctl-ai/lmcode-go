@@ -84,6 +84,16 @@ two group binders. `JSON` exposes immutable typed accessors and `ToJSON()` to
 host callbacks; lmcode child handles point to the same tree nodes and do not
 consume arena slots. No third-party Go modules or CGO are used.
 
+## Dry callback policies
+
+Built-in functions and methods that compute or mutate only run-owned values
+receive an explicit dry callback that invokes the same implementation. File
+read/existence/lines callbacks also opt into their real regular-file reads.
+File write and append keep no dry callback, so dry dispatch uses their declared
+void dummy and leaves the filesystem unchanged. The optional testing catalog's
+`print` callback is retained once for diagnostics. New standard registrations
+must deliberately choose a dry slot; a name does not inherit a policy.
+
 ## Verification and compiler status
 
 The synchronized `conformance/stdlib-vectors` directory has 267 cases; the

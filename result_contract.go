@@ -149,6 +149,10 @@ func resultSource(v Value) string {
 		return "string"
 	case KindObj:
 		return v.Type
+	case kindDryNull:
+		if v.isDryNull() {
+			return "null"
+		}
 	}
 	return "handle"
 }
