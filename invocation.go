@@ -57,7 +57,14 @@ func invocationKeys(n *JSON, allowed ...string) error {
 func InvocationResultsFromMetadata(raw []byte, files []string) (*InvocationResults, error) {
 	n, err := ParseJSON(string(raw))
 	if err != nil {
-		return nil, invocationError(err.Error())
+		message := err.Error()
+		if message == "json_parse: BOM is not allowed at byte 0" {
+			message = "JSON BOM is not allowed"
+		}
+		if strings.HasPrefix(message, "json_parse: trailing input at byte ") {
+			message = "trailing JSON input"
+		}
+		return nil, invocationError(message)
 	}
 	n, err = copyResultJSON(n, "", map[*JSON]bool{})
 	if err != nil {

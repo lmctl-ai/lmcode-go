@@ -110,14 +110,16 @@ func TestInvocationMissingAndGlobalFailure(t *testing.T) {
 type invocationFlushWriter struct {
 	bytes.Buffer
 	flushes int
+	flushed string
 	fail    bool
 }
 
 func (w *invocationFlushWriter) Flush() error {
 	w.flushes++
-	if w.fail {
+	if w.fail && w.Len() > 0 {
 		return io.ErrClosedPipe
 	}
+	w.flushed = w.String()
 	return nil
 }
 func TestInvocationFlush(t *testing.T) {
@@ -130,6 +132,9 @@ func TestInvocationFlush(t *testing.T) {
 		}
 		if r.WriteFrame(w) != want || w.flushes != 1 {
 			t.Fatal("flush lost", w.flushes)
+		}
+		if !fail && (w.flushed != w.String() || !strings.HasSuffix(w.flushed, "LMCODE_RETURN_END\n")) {
+			t.Fatal("frame was not flushed after writing", w.flushed)
 		}
 		n := w.Len()
 		if r.WriteFrame(w) != 4 || w.Len() != n || w.flushes != 1 {

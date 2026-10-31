@@ -3,6 +3,7 @@
 import os,pathlib,shutil,subprocess,tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 CASES=[
+ ('flush before write','invocation.go','\tn, err := io.WriteString(w, frame)\n\tif err == nil && n != len(frame) {\n\t\terr = io.ErrShortWrite\n\t}\n\tif err == nil {\n\t\tif buffered, ok := w.(interface{ Flush() error }); ok {\n\t\t\terr = buffered.Flush()\n\t\t}\n\t}', 'var err error; if buffered,ok:=w.(interface{Flush()error});ok{err=buffered.Flush()};if err==nil{var n int;n,err=io.WriteString(w,frame);if err==nil&&n!=len(frame){err=io.ErrShortWrite}}','TestInvocationFlush'),
  ('missing seal','result_sink.go','s.sealed = true','s.sealed = false','TestInvocationSeal'),
  ('reused sink','invocation.go','s.sink = NewResultSink(contract)','s.sink = NewResultSink(contract); for _, other := range r.slots { if other.sink != nil && other.sink != s.sink { s.sink = other.sink; break } }','TestInvocationOrderAndReselection'),
  ('wrong part','invocation.go','copy := *index','copy := 0','TestInvocationFirstFailureAndDrain'),
