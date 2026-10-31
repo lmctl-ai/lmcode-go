@@ -7,14 +7,18 @@ fn step(command) {
   return result;
 }
 step(["bash", "scripts/sync-std.sh", "--verify"]);
+step(["bash", "scripts/sync-vectors.sh", "--verify"]);
 step(["go", "test", "./..."]);
 step(["python3", "scripts/gen-std-docs.py", "--check"]);
 step(["python3", "scripts/test-return-controls.py"]);
+step(["python3", "scripts/test-invocation-controls.py"]);
 mkdir("bin");
 ext = ""; if (env("RUNNER_OS") == "Windows") { ext = ".exe"; }
-for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}, {name:"return-conformance", source:"./cmd/return-conformance"}]) {
+for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}, {name:"return-conformance", source:"./cmd/return-conformance"}, {name:"invocation-conformance", source:"./cmd/invocation-conformance"}]) {
   step(["go", "build", "-trimpath", "-o", "bin/" + p.name + ext, p.source]);
 }
+set_env("LMCODE_INVOCATION_HARNESS", path_join(Directory,"bin/invocation-conformance" + ext));
+step(["python3", "scripts/test-invocation-vectors.py"]);
 step(["python3", "scripts/test-return-vectors.py", path_join(Directory,"bin/return-conformance" + ext)]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/vectors"]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/stdlib-vectors"]);

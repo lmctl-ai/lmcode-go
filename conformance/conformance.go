@@ -503,6 +503,15 @@ func CheckVector(dir, name string) (string, error) {
 	ran := false
 	var entryLines []string
 
+	results, _ := lmcode.InvocationResultsFromManifest([]string{name}, nil)
+	contract, contractErr := lmcode.ResultContractFromSchema(schema)
+	if contractErr != nil {
+		return "", contractErr
+	}
+	stub.Sink, err = results.Select(0, stub.Reg, contract)
+	if err != nil {
+		return "", err
+	}
 	p, err := lmcode.Load(bytecode, schema, stub.Reg)
 	if err != nil {
 		loadErr = err
@@ -664,12 +673,15 @@ func CheckVector(dir, name string) (string, error) {
 
 	if expect.Sink != nil {
 		var frame bytes.Buffer
-		// Frame only after BOTH the body and selected entry have succeeded.
-		if loaded && ran && expect.Kind != "entries" {
-			if err := lmcode.WriteResultFrame(&frame, stub.Sink); err != nil {
-				return "", err
-			}
+		index := 0
+		if loadErr != nil {
+			_ = results.Fail(&index, "load", loadErr)
+		} else if runErr != nil {
+			_ = results.Fail(&index, "run", runErr)
+		} else {
+			_ = results.Complete(0)
 		}
+		results.WriteFrame(&frame)
 		if stub.Sink.JSON() != expect.Sink.JSON || frame.String() != expect.Sink.Frame {
 			return "", fmt.Errorf("%s: sink/frame mismatch: json=%q frame=%q", name, stub.Sink.JSON(), frame.String())
 		}

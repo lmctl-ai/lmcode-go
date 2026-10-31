@@ -3,7 +3,7 @@
 import os, pathlib, shutil, subprocess, tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 CASES=[
- ('buffered writer failure','result_sink.go',[('return buffered.Flush()','_ = buffered; return nil')],'TestResultFlushFailure'),
+ ('buffered writer failure','invocation.go',[('err = buffered.Flush()', '_ = buffered; err = nil')],'TestResultFlushFailure'),
  ('shortest formatter','result_sink.go',[("strconv.FormatFloat(value, 'g', -1, 64)","FormatG15(value)")],'TestResultFrameNumericAndStrings'),
  ('JSON source alias','result_sink.go',[("return copyResultJSON(j, path, map[*JSON]bool{})","return j, nil")],'TestResultSinkOwnershipAndLifecycle'),
  ('arena teardown','registry.go',[("func (r *Registry) endRun() {","func (r *Registry) endRun() { if r.runState.resultSink != nil { r.runState.resultSink.Reset() }")],'TestResultSinkOwnershipAndLifecycle'),
@@ -16,14 +16,12 @@ CASES=[
  ('UTF8 keys','result_sink.go',[("if !utf8.ValidString(key) {","if false {")],'TestResultAtomicErrorsAndOrder'),
  ('cycle refusal','result_sink.go',[("return nil, resultInvalid(path, \"cycle\")","return &JSON{kind:jsonNull}, nil")],'TestResultCyclesAndHandles'),
  ('atomic set','result_sink.go',[("owned, err := copyResultValue(value, \"\")\n\tif err != nil {","owned, err := copyResultValue(value, \"\")\n\tif err != nil { s.root=nil;")],'TestResultFailedSetIsAtomic'),
- ('field overwrite order','result_sink.go',[("if s.root.object[i].key == key {","if false {")],'TestResultAtomicErrorsAndOrder'),
+ ('field overwrite order','result_sink.go',[("if next.object[i].key == key {","if false {")],'TestResultAtomicErrorsAndOrder'),
  ('global sink','result_sink.go',[("const resultSafeInteger", "var sharedResultSink *ResultSink\nconst resultSafeInteger"),("r.runState.resultSink","sharedResultSink")],'TestResultDistinctSinks'),
- ('frame after entry failure','conformance/returns.go',[("return \"\", 3, err","return lmcode.ResultFrame(sink), 3, err")],'TestCanonicalReturnVectors/entry-error'),
- ('frame before app validation','conformance/returns.go',[("return \"\", 4, nil","return lmcode.ResultFrame(sink), 4, nil")],'TestCanonicalReturnVectors'),
+ ('success after entry failure','conformance/returns.go',[('_ = results.Fail(&index, "run", err)','_ = index')],'TestCanonicalReturnVectors/entry-error'),
+ ('success after app validation failure','conformance/returns.go',[('_ = results.Fail(nil, "app", lmcode.NewError(lmcode.APP_FAIL, "native validation failed"))','_ = 0')],'TestCanonicalReturnVectors'),
 ]
-# Only the post-execution error branch has a configured sink; mutation below is
-# anchored there rather than manufacturing an undefined identifier at setup.
-CASES[-2]=(CASES[-2][0],CASES[-2][1],[("if err != nil {\n\t\treturn \"\", 3, err\n\t}\n\tif appFail", "if err != nil {\n\t\treturn lmcode.ResultFrame(sink), 3, err\n\t}\n\tif appFail")],CASES[-2][3])
+
 with tempfile.TemporaryDirectory(prefix='wp30b-mutants-') as temporary:
  work=pathlib.Path(temporary)/'repo'
  shutil.copytree(ROOT,work,ignore=shutil.ignore_patterns('.git','bin','dist','__pycache__'))

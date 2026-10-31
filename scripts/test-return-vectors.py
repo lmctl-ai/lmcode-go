@@ -14,5 +14,5 @@ for case in manifest['vectors']:
  else:assert b'dsl line ' in result.stderr,case['name']
  print('PASS terminal return '+case['name'])
 result=subprocess.run([str(binary),str(DIR/'entry-sink.dslb'),'1','--app-fail'],capture_output=True)
-assert result.returncode==4 and result.stdout==b'',(result.returncode,result.stdout)
-print('PASS application failure has no frame')
+assert result.returncode==4 and result.stdout==b'LMCODE_RETURN_BEGIN\n{"ok":false,"phase":"app","code":"APP_FAIL","message":"native validation failed"}\nLMCODE_RETURN_END\n',(result.returncode,result.stdout)
+print('PASS application failure has no partial result')

@@ -36,14 +36,6 @@ func TestCanonicalReturnVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provenance, err := os.ReadFile("return-vectors.lock")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(lock)
-	if !strings.Contains(string(provenance), "sha256="+hex.EncodeToString(sum[:])+"\n") {
-		t.Fatal("canonical return lock changed")
-	}
 	for _, line := range strings.Split(strings.TrimSpace(string(lock)), "\n") {
 		fields := strings.SplitN(line, "  ", 2)
 		if len(fields) != 2 {
@@ -80,7 +72,7 @@ func TestCanonicalReturnVectors(t *testing.T) {
 		})
 	}
 	out, code, err := conformance.ExecuteReturnFixture(dir, "entry-sink.dslb", 1, true)
-	if out != "" || code != 4 || err != nil {
+	if out != "LMCODE_RETURN_BEGIN\n{\"ok\":false,\"phase\":\"app\",\"code\":\"APP_FAIL\",\"message\":\"native validation failed\"}\nLMCODE_RETURN_END\n" || code != 4 || err != nil {
 		t.Fatal("app failure emitted a frame", out, code, err)
 	}
 }

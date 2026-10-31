@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pin core and optional string catalog fixtures from lmcode-cpp; --verify checks both digests.
+# Pin core, standard, return and invocation fixtures; --verify checks their digests.
 set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SDK="${LMCODE_CPP:-$HERE/../lmcode-cpp}"
@@ -8,7 +8,7 @@ command -v /usr/bin/find >/dev/null 2>&1 && FIND="/usr/bin/find"
 SORT="sort"
 command -v /usr/bin/sort >/dev/null 2>&1 && SORT="/usr/bin/sort"
 digest() { (cd "$1" && $FIND . -type f | LC_ALL=C $SORT | xargs sha256sum | sed -e 's/ \*/  /' | tr -d '\r' | sha256sum | cut -c1-64); }
-for suite in vectors stdlib-vectors; do
+for suite in vectors stdlib-vectors return-vectors invocation-vectors; do
   DST="$HERE/conformance/$suite"
   LOCK="$HERE/$suite.lock"
   if [ "${1:-}" = "--verify" ]; then
@@ -23,3 +23,12 @@ for suite in vectors stdlib-vectors; do
     echo "synced $suite from lmcode-cpp $(git -C "$SDK" rev-parse --short HEAD)"
   fi
 done
+
+# Mirror the canonical executable oracle along with its byte fixtures.
+if [ "${1:-}" != "--verify" ]; then
+  python3 - "$SDK/tests/test_invocation_vectors.py" "$HERE/scripts/test-invocation-vectors.py" <<'PYORACLE'
+import pathlib,sys
+source=pathlib.Path(sys.argv[1]).read_text().replace("str(ROOT/'build/invocation_conformance')", "str(ROOT/'bin/invocation-conformance')")
+pathlib.Path(sys.argv[2]).write_text(source)
+PYORACLE
+fi
