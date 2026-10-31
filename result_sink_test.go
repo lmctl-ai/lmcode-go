@@ -75,7 +75,7 @@ func TestResultFrameNumericAndStrings(t *testing.T) {
 	s := &ResultSink{}
 	a, b := 0.1, 0.2
 	mustResult(t, s.Set(Float(a+b)))
-	if ResultFrame(s) != "LMCODE_RETURN_BEGIN\n0.30000000000000004\nLMCODE_RETURN_END\n" {
+	if ResultFrame(s) != "LMCODE_RETURN_BEGIN\n{\"ok\":true,\"result\":0.30000000000000004}\nLMCODE_RETURN_END\n" {
 		t.Fatal("shortest round trip", ResultFrame(s))
 	}
 	for _, c := range []struct {
