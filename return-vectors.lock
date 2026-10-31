@@ -1,0 +1,3 @@
+repo=https://github.com/lmctl-ai/lmcode-cpp
+commit=14868f84188abaf46d094e61abd291013d9bae1e
+manifest=conformance/return-vectors/vectors.lock

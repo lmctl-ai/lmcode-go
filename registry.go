@@ -82,7 +82,10 @@ type Registry struct {
 	runState            *registryRunState
 }
 
-type registryRunState struct{ mu sync.Mutex }
+type registryRunState struct {
+	mu         sync.Mutex
+	resultSink *ResultSink
+}
 
 // NewRegistry creates a Registry with the canonical standard catalog enabled.
 func NewRegistry() *Registry {
@@ -216,6 +219,9 @@ func RegisterStd(r *Registry) error {
 		return err
 	}
 	if err := RegisterJSON(r, r.stdCollections); err != nil {
+		return err
+	}
+	if err := registerResults(r); err != nil {
 		return err
 	}
 	for k := range r.functions {
