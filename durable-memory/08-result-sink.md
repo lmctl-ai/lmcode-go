@@ -1,46 +1,50 @@
-# Invocation-owned results (consensus slice 2)
+# Invocation results (amendment R3)
 
-The canonical std v3 catalog now has 206 signatures, including 24 return
-imports. DSLB stays version 6. This port follows lmcode-cpp slice 1; the copied
-return fixture family and its original hashes live in conformance/return-vectors.
-The canonical directory README describes the C++ reference host. Go executes the
-same bytes and expectations through conformance.ExecuteReturnFixture and go test.
+The canonical std v3 catalog keeps 206 signatures and 24 return imports. DSLB
+stays version 6. Canonical C++ R1 bytecodes and exact frames are pinned through
+scripts/sync-vectors.sh; scripts/sync-std.sh mirrors schema and generated docs.
+No compatibility reporter or sink-only framing API remains.
 
-Create one zero-value lmcode.ResultSink per logical invocation. Bind it with
-registry.SetResultSink(&sink) before execution. Keep it across Program.Run and
-selected Program.Call regions. Reset only before the next logical program, not
-between entries. Registry copies share the existing execution-state identity and
-sink binding; separate concurrent invocations use distinct registries and sinks.
-Configure bindings outside execution, following the registry concurrency contract.
+InvocationResultsFromCommand reads the private environment descriptor; explicit
+InvocationResultsFromManifest and InvocationResultsFromMetadata constructors
+support embedding/testing without changing process environment. Missing env uses
+CLI occurrence order, including duplicates. Present empty env is invalid. Strict
+JSON, exact keys, contiguous safe indices, absolute unique metadata files and a
+complete registration permutation are required. Returned registrations are copies.
+The manifest never supplies result contracts. Introspection must bypass this reader.
 
-Set, Put, SetNull and PutNull own their values immediately. Whole writes replace;
-field writes promote null to an object, preserve overwrite position, and refuse
-scalar/list roots. Validation completes before mutation. Json remains immutable
-and has no new builder/mutation methods. Unsupported handles, cycles, invalid
-UTF-8, nonfinite values, unsafe mathematical integers and token underflow are
-RUN_HOST errors with the consensus JSON Pointer and reason codes. Json raw
-number tokens are checked before rounded values are accepted. Existing Json
-parsing and str(float) behavior are unchanged.
+One ResultSink per slot spans body and entries. Select binds it through the registry;
+reselection neither resets nor changes its contract. Complete validates and seals
+an owned snapshot. Writes, reset, reselection and second completion then fail.
+Do not copy sinks/collectors or concurrently operate on them; the host's registry
+synchronization remains authoritative. New invocations create new collectors.
 
-Result floats use strconv.FormatFloat(value, 'g', -1, 64), never FormatG15.
-The runtime value of 0.1 + 0.2 frames as 0.30000000000000004; negative zero frames
-as 0. Strings use strict UTF-8 JSON escaping without an HTML policy.
+ResultContractFromSchema reads schema 2's optional result declaration. Supported
+types are null, bool, int, float, string, Json, StrList/IntList/FloatList and
+StrMap/IntMap/FloatMap. Nullable defaults false; type null forbids nullable.
+No declaration allows any valid JSON. Initial/reset null is unfinished state;
+explicit null and Complete validate it. Homogeneous elements cannot be null.
+Known int and integer collections widen to their float counterparts; typed empty
+collections retain their source distinction. Json handles defer shape checking.
+Writes copy and validate before replacing state, including field writes.
 
-ResultFrame returns the exact terminal frame as a string. WriteResultFrame
-writes it to an io.Writer and returns I/O/short-write errors. Writers exposing
-Flush() error are flushed before success, including bufio.Writer. Native callbacks
-never print. The host must call framing only after body, selected entries AND
-application validation succeed. On any failure, keep the diagnostic/exit policy
-and emit no frame. Failed writes leave the previous sink value intact; that is
-not permission to emit it after a failed invocation. Entry HALT values remain
-separate. Unset sinks emit a mandatory null frame when the host succeeds.
+All earlier numeric/copy rules remain: UTF-8, no duplicate JSON keys, safe integer
+bounds, nonfinite/underflow refusal, pointer paths and owned container snapshots.
+Go uses strconv.FormatFloat(value, 'g', -1, 64), independent of str(float).
+0.1 + 0.2 stays 0.30000000000000004; negative zero normalizes to zero.
 
-Use an LF-preserving writer. Go os.Stdout does not perform CRT newline translation.
-Consumers still need the compiler/executor and sample-adoption slices; updating
-this SDK does not add terminal frames to existing host reporters automatically.
+Fail retains the first observed error and builder part (single/global failures
+omit part). New slots cannot start after failure, but selected work may drain.
+Complete type errors latch their slot before returning. Global app validation
+also discards all results. A missing completion is a failure, never silent null.
 
-Verification: go test ./... includes the canonical nine-frame family, numeric,
-ownership, region lifecycle, registry-copy and concurrency tests. Run
-python3 scripts/test-return-controls.py for production-copy failing controls.
-Canonical std documentation is generated by scripts/gen-std-docs.py from the
-copied std/lmcode-std.docs.json and exact schema bytes.
+WriteFrame emits exactly one canonical success/failure envelope in add order,
+returns 0/2/3/4 and flushes buffered writers. A partial write or flush failure
+returns 4 with best-effort stderr and cannot append a second frame. FailureFrame
+covers pre-collector errors; callers must return immediately with its status.
+Go os.Stdout preserves LF on Windows. Native cross-platform gates are not implied
+by Linux testing. The VM itself never prints or changes HALT results.
+
+Gates: test.lms; go vet ./...; go test -race ./...; the return and invocation
+mutation scripts. No network, paid model calls or public invocation-path option
+is part of this API. Host/sample adoption is the later R7 lane.

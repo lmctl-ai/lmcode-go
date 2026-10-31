@@ -14,8 +14,7 @@ lmscript compiles a `_lmcode_` block (a small strongly typed configuration langu
 portable bytecode file (`.dslb`). A host program written in Go imports `github.com/lmctl-ai/lmcode-go`, implements the schema's
 objects and functions in an `lmcode.Registry`, loads the file with the exact schema bytes, and runs the chunk once per event with an
 `lmcode.Context` of live host objects. The host owns the process, the objects, and their lifetime; the chunk only calls what
-the registry offers. lmscript never executes the lmcode program; this SDK never reads the schema's content, only its bytes (for the
-SHA-256 binding).
+the registry offers. lmscript never executes the lmcode program; the loader hashes the exact schema bytes for binding. ResultContractFromSchema additionally reads the optional result metadata.
 
 ## Gallery
 
@@ -74,7 +73,12 @@ func main() {
 
 `Registry` is declared with the schema's types (parameter types and return type, as strings); a name may have several overloads with distinct parameter tuples, while registering the same parameter tuple twice is refused. `Load()` resolves canonical import signatures (including parameter and return types), and refuses a file whose imports the registry does not provide, before anything runs. `reg.Signatures()` lists the sorted canonical strings (`context g: Greeter`, `fn now() -> string`, `method Greeter.say(string) -> void`), including enabled std. Compare compiler declarations with `CheckSchemaSignatures` so both host-only and std-merged schemas are accepted, while host declaration drift is rejected. That is a consistency check, not a defense: by design the VM performs no comprehensive call-time argument or return checks; it still checks method receiver kinds and other defensive VM invariants. Bytecode is trusted like the host's own code. `Value` carries `INT` (int64), `FLOAT` (binary64), `STR`, `BOOL`, and `OBJ` (host object pointer/interface plus schema type name); a void method returns `lmcode.None()`. Host code returns an error or calls `lmcode.NewHostError(msg)` to report a run-time failure.
 
-**Result line and exit codes.** CLI hosts print exactly one JSON line on stdout through `lmcode.ReportOK(json)`, `lmcode.ReportError("load"|"run", err)` (returns 3) or `lmcode.ReportAppFailure(message)` (returns 4) and exit with the returned code; lmscript's own compile failures are exit 2. `Error.Code` is `LOAD_BAD_BYTECODE`, `LOAD_SCHEMA_MISMATCH`, `LOAD_UNBOUND`, `RUN_ERROR` (a VM error), `RUN_HOST` (returned by a host closure), or `APP_FAIL`. When a non-empty line table maps the faulting opcode, `Error` carries numeric `Line`/`Column` and prefixes the message with `dsl line N:C: `; the standard JSON result includes those fields; a zero column means the line is known and only `line` is emitted. Empty line tables preserve the original message and omit the fields.
+**Invocation envelope and exits.** Hosts use InvocationResults to emit one terminal
+success/failure envelope after all selected programs and application checks finish.
+Success is exit 0; cli failures exit 2, load/run failures exit 3, app failures exit 4.
+Output/flush failure returns 4 without another frame. FailureFrame handles errors
+before collector creation. VM errors retain their original source locations and
+literal diagnostic prefixes; per-slot failures include part only in builder mode.
 
 ## Versioning rule
 
@@ -175,7 +179,7 @@ The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
 
 ## Local gates and CI
 
-Install Go 1.26, Node 24 and `npm install -g @lmctl-ai/lmctl`. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
+Install Go 1.26 and Node 24; put a coherent compiler build on a private PATH. Published compiler 0.2.444 predates the renamed inspection flags; it is not sufficient for this gate. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
 
 The release workflow is manual-only under the 2026-10-31 operator ruling; main pushes do not publish releases. A separate test workflow, maintained concurrently, can run on pushes and pull requests. The full local gate is required before landing changes; manual workflow dispatch and release remain operator-owned.
 
@@ -187,25 +191,38 @@ The standard `template_render(string, Json) -> string` function renders arbitrar
 
 ## Invocation results
 
-The canonical standard includes 24 lmcode_return_* write imports. Bind a host-owned
-ResultSink with Registry.SetResultSink before execution, retain it across body
-and selected entry calls, and Reset it only before the next logical program.
-Writes own their data; they do not alter entry HALT results. The registry has no
-default/global sink. A missing sink is RUN_HOST, not a silently discarded write.
+Create InvocationResultsFromCommand(parsedFiles) once after parsing execution
+options. It validates LMCODE_INVOCATION_FILE when present; without it, one CLI
+file is single mode and several files form an argument-order aggregate (duplicates
+are allowed). Introspection does not consume execution metadata.
 
-After successful dispatch AND application validation, explicitly call
-WriteResultFrame(output, &sink). It emits a mandatory terminal null frame when
-unset. On failure, emit no frame. Native libraries never print automatically;
-existing diagnostic reporters and sample hosts need their own adoption changes.
-ResultFrame formats binary64 with Go shortest-round-trip formatting, independently
-of str(float); 0.1 + 0.2 is 0.30000000000000004. See
-[ownership/numeric/framing details](durable-memory/08-result-sink.md) and the
-[generated canonical reference](docs/std.md).
+For each registration, load against the host's exact schema, parse its optional
+ResultContractFromSchema, and Select(index, registry, contract). Run the body and
+selected entries, then Complete(index). Each slot owns a fresh sink. Reselection
+preserves an active sink; completion validates and seals it. Dispatch may be in a
+different order from registration; results remain in canonical add order.
 
-The full local gate also checks canonical return fixtures, declaration docs and
-production-copy mutations. The return-conformance executable is a fixture host,
-not a generic application dispatcher. No bytecode-version change or new Json
-builder API is involved.
+Fail(&index, phase, err) records a part failure; Fail(nil, "app", err) records a
+global validation failure. The first failure wins, including its original location
+and part. Stop new work and drain active work before WriteFrame(output), which
+returns the process exit status. No partial success is emitted after failure.
+A no-write completed program yields null only when its contract permits null.
+
+Single success is {"ok":true,"result":VALUE}; builder success adds an ordered
+result array and the required parts count, including a one-slot builder. Exactly
+one compact envelope is framed by LMCODE_RETURN_BEGIN/END with final LF. A writer
+with Flush() error is flushed; a collector never retries output after writing starts.
+The old sink-only and unframed reporter APIs are removed without aliases.
+
+The 24 standard return imports own their data, survive VM arena cleanup, and do
+not change entry HALT values. Shortest-round-trip binary64 formatting retains
+0.1 + 0.2 as 0.30000000000000004. See
+[contracts, ownership and lifecycle](durable-memory/08-result-sink.md).
+
+The full local gate includes pinned core/standard/return/invocation vectors,
+14 canonical native envelope goldens, malformed metadata, and production-copy
+mutation controls. Sample adapter adoption is separate; do not repin a host
+that still calls removed reporting APIs.
 
 ## Historical literal names
 
