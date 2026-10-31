@@ -94,8 +94,8 @@ func TestAllVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VectorNames(%s): %v", dir, err)
 	}
-	if len(names) != 406 {
-		t.Fatalf("expected 406 core vectors, got %d", len(names))
+	if len(names) != 410 {
+		t.Fatalf("expected 410 core vectors, got %d", len(names))
 	}
 
 	for _, name := range names {
