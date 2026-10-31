@@ -5,3 +5,7 @@ conformance/vectors/*.expect text eol=lf
 conformance/vectors/*.json text eol=lf
 conformance/vectors/*.dslb binary
 std/*.json text eol=lf
+
+# Terminal return fixtures are literal LF protocol bytes.
+conformance/return-vectors/** text eol=lf
+conformance/return-vectors/*.dslb binary

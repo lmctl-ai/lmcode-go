@@ -35,6 +35,15 @@ func TestCanonicalReturnVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	provenance, err := os.ReadFile("return-vectors.lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(lock)
+	if !strings.Contains(string(provenance), "sha256="+hex.EncodeToString(sum[:])+"\n") {
+		t.Fatal("canonical return lock changed")
+	}
 	for _, line := range strings.Split(strings.TrimSpace(string(lock)), "\n") {
 		fields := strings.SplitN(line, "  ", 2)
 		if len(fields) != 2 {

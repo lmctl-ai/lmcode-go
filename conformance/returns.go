@@ -2,7 +2,6 @@ package conformance
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/lmctl-ai/lmcode-go"
 	"os"
 	"path/filepath"
@@ -30,7 +29,7 @@ func ExecuteReturnFixture(dir, file string, repeat int, appFail bool) (string, i
 	}
 	err = r.Function("expect_result", []string{"string"}, "void", func(a []lmcode.Value) (lmcode.Value, error) {
 		if sink.JSON() != a[0].Str {
-			return lmcode.None(), lmcode.NewHostError("unexpected result: " + sink.JSON())
+			return lmcode.None(), lmcode.NewHostError("return overload payload mismatch")
 		}
 		return lmcode.None(), nil
 	})
@@ -45,15 +44,15 @@ func ExecuteReturnFixture(dir, file string, repeat int, appFail bool) (string, i
 	sink.Reset()
 	err = program.Run(context, r)
 	if err == nil {
-		for i := range program.Entries() {
-			for n := 0; n < repeat; n++ {
+		for n := 0; n < repeat; n++ {
+			for i := range program.Entries() {
 				var halt lmcode.Value
 				halt, err = program.Call(i, context, r, nil)
 				if err != nil {
 					break
 				}
 				if halt.Kind != lmcode.KindInt || halt.Int != 7 {
-					err = fmt.Errorf("HALT result changed: %v", halt)
+					err = lmcode.NewHostError("entry HALT result changed")
 					break
 				}
 			}

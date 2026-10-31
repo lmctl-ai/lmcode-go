@@ -86,6 +86,9 @@ func WriteResultFrame(w io.Writer, s *ResultSink) error {
 	if n != len(frame) {
 		return io.ErrShortWrite
 	}
+	if buffered, ok := w.(interface{ Flush() error }); ok {
+		return buffered.Flush()
+	}
 	return nil
 }
 

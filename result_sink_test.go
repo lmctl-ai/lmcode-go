@@ -227,3 +227,72 @@ func TestResultRegistryCopySharesBinding(t *testing.T) {
 		t.Fatal("copied registry lost sink binding")
 	}
 }
+
+func TestResultDistinctSinks(t *testing.T) {
+	a, b := NewRegistry(), NewRegistry()
+	x, y := &ResultSink{}, &ResultSink{}
+	mustResult(t, a.SetResultSink(x))
+	mustResult(t, b.SetResultSink(y))
+	_, err := a.FunctionBySignature("fn lmcode_return_set(string) -> void").Fn([]Value{String("left")})
+	mustResult(t, err)
+	_, err = b.FunctionBySignature("fn lmcode_return_set(string) -> void").Fn([]Value{String("right")})
+	mustResult(t, err)
+	if x.JSON() != `"left"` || y.JSON() != `"right"` {
+		t.Fatal("shared global sink", x.JSON(), y.JSON())
+	}
+}
+func TestResultFailedSetIsAtomic(t *testing.T) {
+	s := &ResultSink{}
+	mustResult(t, s.Set(Int(7)))
+	resultError(t, s.Set(Float(math.Inf(1))), "lmcode return: invalid JSON value at : nonfinite")
+	if s.JSON() != "7" {
+		t.Fatal("failed set replaced prior sink", s.JSON())
+	}
+}
+
+type resultDeferredWriter struct{}
+
+func (resultDeferredWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (resultDeferredWriter) Flush() error                { return io.ErrClosedPipe }
+func TestResultFlushFailure(t *testing.T) {
+	if err := WriteResultFrame(resultDeferredWriter{}, &ResultSink{}); err != io.ErrClosedPipe {
+		t.Fatalf("buffered frame failure lost: %v", err)
+	}
+}
+func TestResultBorrowedChild(t *testing.T) {
+	j, err := ParseJSON(`{"child":[1,true,null]}`)
+	mustResult(t, err)
+	child, err := j.Get("child")
+	mustResult(t, err)
+	s := &ResultSink{}
+	mustResult(t, s.Set(Object("Json", child)))
+	j.object[0].value.array = nil
+	if s.JSON() != `[1,true,null]` {
+		t.Fatal("borrowed child changed", s.JSON())
+	}
+}
+
+func TestResultContainerSnapshots(t *testing.T) {
+	s := &ResultSink{}
+	a := &StrList{values: []string{"one"}}
+	b := &FloatList{values: []float64{0.5, math.Copysign(0, -1)}}
+	c := &StrMap{keys: []string{"s"}, values: map[string]string{"s": "v"}, positions: map[string]int{"s": 0}, live: 1, fenwick: []int{0, 1}}
+	d := &IntMap{}
+	d.data.set("i", 8)
+	e := &FloatMap{}
+	e.data.set("f", 0.25)
+	for _, v := range []struct {
+		key, typ string
+		obj      any
+	}{{"a", "StrList", a}, {"b", "FloatList", b}, {"c", "StrMap", c}, {"d", "IntMap", d}, {"e", "FloatMap", e}} {
+		mustResult(t, s.Put(v.key, Object(v.typ, v.obj)))
+	}
+	a.values = nil
+	b.values = nil
+	c.values["s"] = "changed"
+	d.data.clear()
+	e.data.clear()
+	if s.JSON() != `{"a":["one"],"b":[0.5,0],"c":{"s":"v"},"d":{"i":8},"e":{"f":0.25}}` {
+		t.Fatal("borrowed container storage", s.JSON())
+	}
+}

@@ -1,3 +1,4 @@
 repo=https://github.com/lmctl-ai/lmcode-cpp
-commit=14868f84188abaf46d094e61abd291013d9bae1e
+commit=b8615eda9fc56cd19eb5ffef62cd05e0d78cd977
 manifest=conformance/return-vectors/vectors.lock
+sha256=c8de1d400427180526e185cc9d53564eb80b8b6d338ae35cc398cb79ced1cac0

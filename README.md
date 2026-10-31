@@ -86,7 +86,7 @@ Wrong magic, another version (v3 or v4 included), a schema-hash mismatch, trunca
 
 ## Standard library catalog
 
-`NewRegistry()` installs the canonical lmcode std v3 catalog (182 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v3 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
+`NewRegistry()` installs the canonical lmcode std v3 catalog (206 signatures) automatically; hosts do not need group-registration calls or handwritten std declarations. The `stdlib` package re-exports compatibility binders for opt-out registries. The exact v3 schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`, then hashed by the loader.
 
 The original string, math, collection, and file contracts remain. V2 added typed insertion-ordered `IntMap`/`FloatMap`; Int/Float/Str stacks and queues; stable min-first priority queues with insertion-order ties and signed-zero priority equality; and immutable `Json` values created by strict `json_parse`. V3 adds strict Base64/hex byte codecs and independent insertion-order `keys()`/`values()` snapshots on all three maps. JSON preserves number/string token spelling and object order in `to_json`, rejects malformed UTF-8/duplicate decoded keys/nonfinite numbers/depth over 256, and uses the shared 65,536-object run arena. Containers use the same arena and retain the documented bounds/empty errors. Strings remain raw bytes, including invalid UTF-8 and NUL; offsets are bytes and case/whitespace rules are ASCII only.
 
@@ -101,7 +101,7 @@ The collections and testing catalogs are declared in `stdlib/collections.schema-
 
 Collection results are ordinary exported objects, so a host callback can consume a returned handle directly: `list := value.Obj.(*stdlib.StrList); snapshot := list.Values()`. Map consumers use `value.Obj.(*stdlib.StrMap).Entries()` for insertion-ordered key/value snapshots.
 
-The root `lmcode` package owns the canonical 182-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
+The root `lmcode` package owns the canonical 206-signature standard surface. `NewRegistry()` enables it, `NewRegistryWithoutStd()` opts out, and `RegisterStd` is idempotent. `StdSignatures`, `HostSignatures`, and `MatchesSchemaSignatures` expose normalized declaration checks. Exact schema bytes are pinned in `std/lmcode-std.schema.json` and `std.lock`; `stdlib` remains a compatibility forwarding package.
 
 ## Build and test
 
@@ -177,10 +177,32 @@ The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
 
 Install Go 1.26, Node 24 and `npm install -g @lmctl-ai/lmctl`. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
 
-Every main push builds with CGO_ENABLED=0 and tests on Linux x64/arm64, macOS x64/arm64 and Windows x64, then publishes native executables, licenses and SHA256SUMS. Pull requests run the same checks without publishing.
+CI is manual-only under the 2026-10-31 operator ruling. Main pushes do not dispatch workflows or publish releases. The full local gate is required before landing changes; workflow dispatch and release remain operator-owned.
 
 `examples/rule-entries/rules.lms` defines `@increment fn next(value: int) -> int implements Score`. The Go host selects the annotation and calls it with 41, asserting 42 before running any body. Tests also compile and execute the greeter, unit tests and both conformance catalogs. Releases contain greeter, conformance and rule-entries binaries.
 
 ## Text templates
 
 The standard `template_render(string, Json) -> string` function renders arbitrary text with nested context, indexed lists, loops and boolean conditions. Inserted values remain literal. See the [portable contract and examples](std/template.md).
+
+## Invocation results
+
+The canonical standard includes 24 lmcode_return_* write imports. Bind a host-owned
+ResultSink with Registry.SetResultSink before execution, retain it across body
+and selected entry calls, and Reset it only before the next logical program.
+Writes own their data; they do not alter entry HALT results. The registry has no
+default/global sink. A missing sink is RUN_HOST, not a silently discarded write.
+
+After successful dispatch AND application validation, explicitly call
+WriteResultFrame(output, &sink). It emits a mandatory terminal null frame when
+unset. On failure, emit no frame. Native libraries never print automatically;
+existing diagnostic reporters and sample hosts need their own adoption changes.
+ResultFrame formats binary64 with Go shortest-round-trip formatting, independently
+of str(float); 0.1 + 0.2 is 0.30000000000000004. See
+[ownership/numeric/framing details](durable-memory/08-result-sink.md) and the
+[generated canonical reference](docs/std.md).
+
+The full local gate also checks canonical return fixtures, declaration docs and
+production-copy mutations. The return-conformance executable is a fixture host,
+not a generic application dispatcher. No bytecode-version change or new Json
+builder API is involved.

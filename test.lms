@@ -8,11 +8,14 @@ fn step(command) {
 }
 step(["bash", "scripts/sync-std.sh", "--verify"]);
 step(["go", "test", "./..."]);
+step(["python3", "scripts/gen-std-docs.py", "--check"]);
+step(["python3", "scripts/test-return-controls.py"]);
 mkdir("bin");
 ext = ""; if (env("RUNNER_OS") == "Windows") { ext = ".exe"; }
-for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}]) {
+for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}, {name:"return-conformance", source:"./cmd/return-conformance"}]) {
   step(["go", "build", "-trimpath", "-o", "bin/" + p.name + ext, p.source]);
 }
+step(["python3", "scripts/test-return-vectors.py", path_join(Directory,"bin/return-conformance" + ext)]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/vectors"]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/stdlib-vectors"]);
 step(["bash", "scripts/compile-examples.sh"]);
