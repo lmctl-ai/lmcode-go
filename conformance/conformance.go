@@ -653,8 +653,10 @@ func CheckVector(dir, name string) (string, error) {
 			}
 		}
 	case "load_error":
-		if !loaded && loadErr != nil && len(expect.Lines) > 0 {
-			ok = strings.Contains(loadErr.Error(), expect.Lines[0])
+		if !loaded && loadErr != nil && len(expect.Lines) == 2 {
+			if lmErr, isLm := loadErr.(*lmcode.Error); isLm {
+				ok = lmErr.Code == expect.Lines[0] && strings.Contains(lmErr.Message, expect.Lines[1])
+			}
 		}
 	default:
 		return "", fmt.Errorf("unknown expectation kind '%s'", expect.Kind)
