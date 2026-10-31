@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/lmctl-ai/lmcode-go"
 )
@@ -22,15 +23,17 @@ func main() {
 		return lmcode.String("2026-10-24"), nil
 	})
 
-	if len(os.Args) > 1 && (os.Args[1] == "--dsl-signatures" || os.Args[1] == "--host-signatures") {
+	if len(os.Args) > 1 && (os.Args[1] == "--lmcode-signatures" || os.Args[1] == "--host-signatures") {
 		signatures := reg.Signatures()
-		if os.Args[1] == "--host-signatures" { signatures = reg.HostSignatures() }
+		if os.Args[1] == "--host-signatures" {
+			signatures = reg.HostSignatures()
+		}
 		for _, s := range signatures {
 			fmt.Println(s)
 		}
 		return
 	}
-	if len(os.Args) < 3 {
+	if len(os.Args) < 3 || strings.HasPrefix(os.Args[1], "--") {
 		fmt.Fprintf(os.Stderr, "usage: greeter BYTECODE SCHEMA\n")
 		os.Exit(2)
 	}

@@ -53,7 +53,7 @@ func main() {
 	_ = reg.Function("now", nil, "string", func(a []lmcode.Value) (lmcode.Value, error) {
 		return lmcode.String("2026-10-24"), nil
 	})
-	if len(os.Args) > 1 && os.Args[1] == "--dsl-signatures" {
+	if len(os.Args) > 1 && os.Args[1] == "--lmcode-signatures" {
 		for _, s := range reg.Signatures() { fmt.Println(s) }
 		return
 	}
@@ -209,4 +209,4 @@ builder API is involved.
 
 ## Historical literal names
 
-The documentation calls the language lmcode. `--dsl`, `--dsl-schema` and `--dsl-signatures` are current host flag literals; `DSLB` is the bytecode magic and `DSLB v6` is the current format name; `.dslb` is the current bytecode filename extension. Other code-formatted API names, paths, manifest names and diagnostic text retain their current literal spellings.
+The documentation calls the language lmcode. `--lmcode`, `--lmcode-schema` and `--lmcode-signatures` are current host flag literals; `DSLB` is the bytecode magic and `DSLB v6` is the current format name; `.dslb` is the current bytecode filename extension. Other code-formatted API names, paths, manifest names and diagnostic text retain their current literal spellings.

@@ -90,7 +90,7 @@ The synchronized `conformance/stdlib-vectors` directory has 267 cases; the
 core bytecode directory has 51. `go test ./...` checks both lock digests,
 compares all registry signatures with the canonical schema, and runs both
 vector suites. The test runner additionally compares the registry with
-`lmscript --dsl-signatures` when a compiler is available.
+`lmscript --lmcode-signatures` when a compiler is available.
 
 Published npm lmscript `0.2.426` returns 72 default signatures for an empty
 host. A scratch build of lmctl-mono `origin/main` at `fa04890c` returns 171

@@ -347,7 +347,7 @@ func (r *Registry) MatchesSchemaSignatures(schema []string) bool {
 	return r.CheckSchemaSignatures(schema) == nil
 }
 
-// Signatures returns sorted canonical strings matching `lmscript --dsl-signatures SCHEMA`.
+// Signatures returns sorted canonical strings matching `lmscript --lmcode-signatures SCHEMA`.
 func (r *Registry) Signatures() []string {
 	var out []string
 	for name, typeName := range r.contexts {

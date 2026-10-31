@@ -16,7 +16,7 @@ fi
 # host-declared surface.
 diff -u <("$BIN" --host-signatures | tr -d '\r') <(
   if command -v lmscript >/dev/null 2>&1; then
-    lmscript --dsl-signatures "$HERE/schema.json" --without-std | tr -d '\r'
+    lmscript --lmcode-signatures "$HERE/schema.json" --without-std | tr -d '\r'
   else
     printf "context g: Greeter\nfn now() -> string\nmethod Greeter.say(string) -> void\n"
   fi

@@ -25,3 +25,10 @@ assert(trim(result.stdout) == "Hello from Go DSL at 2026-10-24", "greeter output
 result = step([path_join(Directory, "bin/greeter" + ext), "--host-signatures"]);
 assert(trim(result.stdout) == "context g: Greeter\nfn now() -> string\nmethod Greeter.say(string) -> void", "greeter signatures differ");
 println("PASS greeter and annotated interface examples");
+
+# Retired host options must never be interpreted as bytecode paths.
+retired = "--" + "dsl";
+for (suffix in ["", "-schema", "-signatures"]) {
+  result = system([path_join(Directory, "bin/greeter" + ext), retired + suffix, "missing.dslb"]);
+  assert(result.code == 2 && result.stdout == "", "retired option reached file loading");
+}

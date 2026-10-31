@@ -112,9 +112,9 @@ func TestPublishedCompilerStdSignatures(t *testing.T) {
 			t.Skip("lmscript is not installed; CI installs the published compiler")
 		}
 	}
-	output, err := compilerCommand(t, compiler, "--dsl-signatures", "std/lmcode-std.schema.json").Output()
+	output, err := compilerCommand(t, compiler, "--lmcode-signatures", "std/lmcode-std.schema.json").Output()
 	if err != nil {
-		t.Fatalf("lmscript --dsl-signatures: %v", err)
+		t.Fatalf("lmscript --lmcode-signatures: %v", err)
 	}
 	want := strings.Join(lmcode.NewRegistry().StdSignatures(), "\n") + "\n"
 	if !bytes.Equal(output, []byte(want)) {
@@ -136,9 +136,9 @@ func TestCompilerDefaultCatalogParity(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte(emptyHost), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	output, err := compilerCommand(t, compiler, "--dsl-signatures", tmp).Output()
+	output, err := compilerCommand(t, compiler, "--lmcode-signatures", tmp).Output()
 	if err != nil {
-		t.Fatalf("lmscript --dsl-signatures empty host: %v", err)
+		t.Fatalf("lmscript --lmcode-signatures empty host: %v", err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(output), "\n"), "\n")
 	if len(lines) < len(lmcode.NewRegistry().StdSignatures()) {
