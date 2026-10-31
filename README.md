@@ -173,11 +173,11 @@ The pinned corpus is 70 core plus 267 standard vectors from lmcode-cpp d608ba2.
 `go test ./...` covers those vectors and direct loader/API controls. See
 [rule-entry notes](durable-memory/07-rule-entries.md). Samples pin independently reviewed module versions in go.mod/go.sum.
 
-## lmscript tests and automatic releases
+## Local gates and CI
 
 Install Go 1.26, Node 24 and `npm install -g @lmctl-ai/lmctl`. From this repository run `lmscript test.lms` or `lmctl test.lms`; test.sh forwards to lmscript.
 
-CI is manual-only under the 2026-10-31 operator ruling. Main pushes do not dispatch workflows or publish releases. The full local gate is required before landing changes; workflow dispatch and release remain operator-owned.
+The release workflow is manual-only under the 2026-10-31 operator ruling; main pushes do not publish releases. A separate test workflow, maintained concurrently, can run on pushes and pull requests. The full local gate is required before landing changes; manual workflow dispatch and release remain operator-owned.
 
 `examples/rule-entries/rules.lms` defines `@increment fn next(value: int) -> int implements Score`. The Go host selects the annotation and calls it with 41, asserting 42 before running any body. Tests also compile and execute the greeter, unit tests and both conformance catalogs. Releases contain greeter, conformance and rule-entries binaries.
 
