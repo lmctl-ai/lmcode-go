@@ -760,9 +760,9 @@ func TestJSONResultHelpers(t *testing.T) {
 	lineOnly.Locate(5, 0)
 	plain := lmcode.NewError(lmcode.APP_FAIL, "app")
 
-	c1 := lmcode.ReportError("run", full)
-	c2 := lmcode.ReportError("run", lineOnly)
-	c3 := lmcode.ReportError("app", plain)
+	c1 := lmcode.FailureFrame(os.Stdout, "run", full)
+	c2 := lmcode.FailureFrame(os.Stdout, "run", lineOnly)
+	c3 := lmcode.FailureFrame(os.Stdout, "app", plain)
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -772,9 +772,9 @@ func TestJSONResultHelpers(t *testing.T) {
 		t.Fatalf("unexpected exit codes: %d, %d, %d", c1, c2, c3)
 	}
 
-	want := "{\"ok\": false, \"phase\": \"run\", \"code\": \"RUN_ERROR\", \"message\": \"dsl line 4:2: bad\", \"line\": 4, \"column\": 2}\n" +
-		"{\"ok\": false, \"phase\": \"run\", \"code\": \"RUN_HOST\", \"message\": \"dsl line 5: host\", \"line\": 5}\n" +
-		"{\"ok\": false, \"phase\": \"app\", \"code\": \"APP_FAIL\", \"message\": \"app\"}\n"
+	want := "LMCODE_RETURN_BEGIN\n{\"ok\":false,\"phase\":\"run\",\"code\":\"RUN_ERROR\",\"message\":\"dsl line 4:2: bad\",\"line\":4,\"column\":2}\nLMCODE_RETURN_END\n" +
+		"LMCODE_RETURN_BEGIN\n{\"ok\":false,\"phase\":\"run\",\"code\":\"RUN_HOST\",\"message\":\"dsl line 5: host\",\"line\":5}\nLMCODE_RETURN_END\n" +
+		"LMCODE_RETURN_BEGIN\n{\"ok\":false,\"phase\":\"app\",\"code\":\"APP_FAIL\",\"message\":\"app\"}\nLMCODE_RETURN_END\n"
 
 	if string(out) != want {
 		t.Fatalf("JSON output mismatch:\ngot:  %q\nwant: %q", string(out), want)

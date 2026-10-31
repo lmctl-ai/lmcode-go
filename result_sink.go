@@ -1,7 +1,6 @@
 package lmcode
 
 import (
-	"io"
 	"math"
 	"regexp"
 	"strconv"
@@ -11,22 +10,70 @@ import (
 
 const resultSafeInteger int64 = 9007199254740991
 
-// ResultSink belongs to one logical invocation, outside the VM collection arena.
-// Keep it across Run/Call regions; Reset only before the next program. Like the
-// registry, a sink must not be shared by concurrent invocations.
-type ResultSink struct{ root *JSON }
+// ResultSink owns one program slot across body and entry calls. Do not copy it
+// or share it across concurrent registry executions. Completion seals all writes.
+type ResultSink struct {
+	root     *JSON
+	contract ResultContract
+	sealed   bool
+}
 
-func (s *ResultSink) Reset()   { s.root = nil }
-func (s *ResultSink) SetNull() { s.Reset() }
+func NewResultSink(contract ResultContract) *ResultSink { return &ResultSink{contract: contract} }
+func (s *ResultSink) writable() error {
+	if s.sealed {
+		return NewHostError("lmcode return: result sink is sealed")
+	}
+	return nil
+}
+func (s *ResultSink) Reset() error {
+	if err := s.writable(); err != nil {
+		return err
+	}
+	s.root = nil
+	return nil
+}
+func (s *ResultSink) SetNull() error           { return s.Set(None()) }
+func (s *ResultSink) Sealed() bool             { return s.sealed }
+func (s *ResultSink) Contract() ResultContract { return s.contract }
+func (s *ResultSink) seal() (*JSON, error) {
+	if err := s.writable(); err != nil {
+		return nil, err
+	}
+	root := s.root
+	if root == nil {
+		root = &JSON{kind: jsonNull}
+	}
+	if err := s.contract.validate(root, ""); err != nil {
+		return nil, err
+	}
+	copy, err := copyResultJSON(root, "", map[*JSON]bool{})
+	if err != nil {
+		return nil, err
+	}
+	s.sealed = true
+	return copy, nil
+}
 func (s *ResultSink) Set(value Value) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
 	owned, err := copyResultValue(value, "")
 	if err != nil {
+		return err
+	}
+	if err := s.contract.validateSource(value); err != nil {
+		return err
+	}
+	if err := s.contract.validate(owned, ""); err != nil {
 		return err
 	}
 	s.root = owned
 	return nil
 }
 func (s *ResultSink) fieldKey(key string) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
 	if s.root != nil && s.root.kind != jsonNull && s.root.kind != jsonObject {
 		return NewHostError("lmcode return: field assignment requires object or null")
 	}
@@ -43,53 +90,48 @@ func (s *ResultSink) Put(key string, value Value) error {
 	if err != nil {
 		return err
 	}
-	s.putOwned(key, owned)
-	return nil
+	if err := s.contract.validateFieldSource(key, value); err != nil {
+		return err
+	}
+	return s.putOwned(key, owned)
 }
 func (s *ResultSink) PutNull(key string) error {
 	if err := s.fieldKey(key); err != nil {
 		return err
 	}
-	s.putOwned(key, &JSON{kind: jsonNull})
-	return nil
+	return s.putOwned(key, &JSON{kind: jsonNull})
 }
-func (s *ResultSink) putOwned(key string, value *JSON) {
-	if s.root == nil || s.root.kind == jsonNull {
-		s.root = &JSON{kind: jsonObject}
-	}
-	for i := range s.root.object {
-		if s.root.object[i].key == key {
-			s.root.object[i].value = value
-			return
+func (s *ResultSink) putOwned(key string, value *JSON) error {
+	next := &JSON{kind: jsonObject}
+	if s.root != nil && s.root.kind == jsonObject {
+		var err error
+		next, err = copyResultJSON(s.root, "", map[*JSON]bool{})
+		if err != nil {
+			return err
 		}
 	}
-	s.root.object = append(s.root.object, jsonMember{key: strings.Clone(key), rawKey: resultQuote(key), value: value})
+	found := false
+	for i := range next.object {
+		if next.object[i].key == key {
+			next.object[i].value = value
+			found = true
+			break
+		}
+	}
+	if !found {
+		next.object = append(next.object, jsonMember{key: strings.Clone(key), rawKey: resultQuote(key), value: value})
+	}
+	if err := s.contract.validate(next, ""); err != nil {
+		return err
+	}
+	s.root = next
+	return nil
 }
 func (s *ResultSink) JSON() string {
 	if s.root == nil {
 		return "null"
 	}
 	return s.root.ToJSON()
-}
-func ResultFrame(s *ResultSink) string {
-	return "LMCODE_RETURN_BEGIN\n" + s.JSON() + "\nLMCODE_RETURN_END\n"
-}
-
-// WriteResultFrame is explicit: call only after body, entries AND application
-// validation succeed. Error paths must not call it. Use an LF-preserving writer.
-func WriteResultFrame(w io.Writer, s *ResultSink) error {
-	frame := ResultFrame(s)
-	n, err := io.WriteString(w, frame)
-	if err != nil {
-		return err
-	}
-	if n != len(frame) {
-		return io.ErrShortWrite
-	}
-	if buffered, ok := w.(interface{ Flush() error }); ok {
-		return buffered.Flush()
-	}
-	return nil
 }
 
 // SetResultSink configures a host-owned sink; nil restores missing-sink errors.
@@ -124,8 +166,7 @@ func registerResults(r *Registry) error {
 		if r.runState.resultSink == nil {
 			return None(), NewHostError("lmcode return: no result sink")
 		}
-		r.runState.resultSink.SetNull()
-		return None(), nil
+		return None(), r.runState.resultSink.SetNull()
 	}); err != nil {
 		return err
 	}

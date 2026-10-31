@@ -75,9 +75,17 @@ func TestResultFrameNumericAndStrings(t *testing.T) {
 	s := &ResultSink{}
 	a, b := 0.1, 0.2
 	mustResult(t, s.Set(Float(a+b)))
-	if ResultFrame(s) != "LMCODE_RETURN_BEGIN\n{\"ok\":true,\"result\":0.30000000000000004}\nLMCODE_RETURN_END\n" {
-		t.Fatal("shortest round trip", ResultFrame(s))
+	r, _ := InvocationResultsFromManifest([]string{"test"}, nil)
+	r.slots[0].sink = s
+	mustResult(t, r.Complete(0))
+	var frame strings.Builder
+	if r.WriteFrame(&frame) != 0 {
+		t.Fatal("frame failure")
 	}
+	if frame.String() != "LMCODE_RETURN_BEGIN\n{\"ok\":true,\"result\":0.30000000000000004}\nLMCODE_RETURN_END\n" {
+		t.Fatal("shortest round trip", frame.String())
+	}
+	s = &ResultSink{}
 	for _, c := range []struct {
 		v    float64
 		want string
@@ -211,8 +219,9 @@ type resultShortWriter struct{}
 
 func (resultShortWriter) Write(p []byte) (int, error) { return len(p) - 1, nil }
 func TestResultWriterFailure(t *testing.T) {
-	if err := WriteResultFrame(resultShortWriter{}, &ResultSink{}); err != io.ErrShortWrite {
-		t.Fatal(err)
+	r := completedResult(t)
+	if code := r.WriteFrame(resultShortWriter{}); code != 4 {
+		t.Fatal(code)
 	}
 }
 
@@ -255,8 +264,9 @@ type resultDeferredWriter struct{}
 func (resultDeferredWriter) Write(p []byte) (int, error) { return len(p), nil }
 func (resultDeferredWriter) Flush() error                { return io.ErrClosedPipe }
 func TestResultFlushFailure(t *testing.T) {
-	if err := WriteResultFrame(resultDeferredWriter{}, &ResultSink{}); err != io.ErrClosedPipe {
-		t.Fatalf("buffered frame failure lost: %v", err)
+	r := completedResult(t)
+	if code := r.WriteFrame(resultDeferredWriter{}); code != 4 {
+		t.Fatalf("buffered frame failure lost: %v", code)
 	}
 }
 func TestResultBorrowedChild(t *testing.T) {
@@ -295,4 +305,14 @@ func TestResultContainerSnapshots(t *testing.T) {
 	if s.JSON() != `{"a":["one"],"b":[0.5,0],"c":{"s":"v"},"d":{"i":8},"e":{"f":0.25}}` {
 		t.Fatal("borrowed container storage", s.JSON())
 	}
+}
+
+func completedResult(t *testing.T) *InvocationResults {
+	t.Helper()
+	r, e := InvocationResultsFromManifest([]string{"test"}, nil)
+	mustResult(t, e)
+	_, e = r.Select(0, NewRegistry(), ResultContract{})
+	mustResult(t, e)
+	mustResult(t, r.Complete(0))
+	return r
 }
