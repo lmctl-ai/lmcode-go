@@ -21,18 +21,14 @@ type Thing struct {
 	ID int64
 }
 
-// IntList is a host collection object used in conformance tests.
-type IntList struct {
-	Values []int64
-}
-
 // Stub implements the host stub described in conformance/vectors/manifest.json.
 type Stub struct {
 	Trace    []string
 	Root     *Thing
 	Variable *Thing
-	Xs       *IntList
+	Xs       any
 	Reg      *lmcode.Registry
+	Sink     *lmcode.ResultSink
 	Output   bytes.Buffer
 	TempDir  string
 }
@@ -43,13 +39,26 @@ func NewStub(stdMode ...bool) *Stub {
 	s := &Stub{
 		Root:     &Thing{ID: 0},
 		Variable: &Thing{ID: 0},
-		Xs:       &IntList{Values: []int64{0, 1, 2, 3}},
-		Reg: func() *lmcode.Registry {
-			if useStd {
-				return lmcode.NewRegistry()
+		Reg:      lmcode.NewRegistry(),
+		Sink:     &lmcode.ResultSink{},
+	}
+	// Use actual standard values, not a lookalike IntList, now that core
+	// programs can capture them through the invocation-owned result sink.
+	if err := s.Reg.SetResultSink(s.Sink); err != nil {
+		panic(err)
+	}
+	if !useStd {
+		list, err := s.Reg.FunctionBySignature("fn int_list() -> IntList").Fn(nil)
+		if err != nil {
+			panic(err)
+		}
+		add := s.Reg.MethodBySignature("method IntList.add(int) -> IntList")
+		for i := int64(0); i < 4; i++ {
+			if _, err := add.Fn(list.Obj, []lmcode.Value{lmcode.Int(i)}); err != nil {
+				panic(err)
 			}
-			return lmcode.NewRegistryWithoutStd()
-		}(),
+		}
+		s.Xs = list.Obj
 	}
 	if useStd {
 		dir, err := os.MkdirTemp("", "lmcode-conformance-")
@@ -87,13 +96,6 @@ func (s *Stub) initRegistry(useStd bool) {
 			}
 			return lmcode.String(filepath.Join(dir, "résumé-文件-😀.bin")), nil
 		})
-	} else {
-		if err := stdlib.RegisterString(s.Reg); err != nil {
-			panic(err)
-		}
-		if err := stdlib.RegisterMath(s.Reg); err != nil {
-			panic(err)
-		}
 	}
 	_ = s.Reg.Function("bytes", []string{"string"}, "string", func(args []lmcode.Value) (lmcode.Value, error) {
 		raw, err := fixtureBytes(args[0].Str)
@@ -111,20 +113,6 @@ func (s *Stub) initRegistry(useStd bool) {
 	_ = s.Reg.Context("v", "Var")
 	if !useStd {
 		_ = s.Reg.Context("xs", "IntList")
-	}
-
-	if !useStd {
-		_ = s.Reg.Method("IntList", "len", nil, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
-			return lmcode.Int(int64(len(self.(*IntList).Values))), nil
-		})
-		_ = s.Reg.Method("IntList", "at", []string{"int"}, "int", func(self any, args []lmcode.Value) (lmcode.Value, error) {
-			idx := args[0].Int
-			list := self.(*IntList).Values
-			if idx < 0 || int(idx) >= len(list) {
-				return lmcode.None(), lmcode.NewHostError("IntList index out of range")
-			}
-			return lmcode.Int(list[idx]), nil
-		})
 	}
 
 	_ = s.Reg.Method("Trace", "int", []string{"int"}, "void", func(self any, args []lmcode.Value) (lmcode.Value, error) {
@@ -315,9 +303,15 @@ func tracesMatch(actual, expected []string) bool {
 }
 
 // Expectation describes expected output parsed from an .expect file.
+type SinkExpectation struct {
+	JSON  string `json:"json"`
+	Frame string `json:"frame"`
+}
+
 type Expectation struct {
 	Kind  string
 	Lines []string
+	Sink  *SinkExpectation
 }
 
 func entryArg(raw json.RawMessage, typ string) (lmcode.Value, error) {
@@ -430,11 +424,20 @@ func ReadExpect(path string) (*Expectation, error) {
 		return &Expectation{}, nil
 	}
 	kind := rawLines[0]
+	var sink *SinkExpectation
+	// Parse the metadata before trace \n unescaping: its frame is JSON text.
+	if last := rawLines[len(rawLines)-1]; strings.HasPrefix(last, "sink ") {
+		sink = &SinkExpectation{}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(last, "sink ")), sink); err != nil {
+			return nil, fmt.Errorf("invalid sink expectation: %w", err)
+		}
+		rawLines = rawLines[:len(rawLines)-1]
+	}
 	var lines []string
 	for _, l := range rawLines[1:] {
 		lines = append(lines, strings.ReplaceAll(l, "\\n", "\n"))
 	}
-	return &Expectation{Kind: kind, Lines: lines}, nil
+	return &Expectation{Kind: kind, Lines: lines, Sink: sink}, nil
 }
 
 // SchemaFor finds the schema path for a vector from manifest.json, or defaults to schema.json.
@@ -657,6 +660,18 @@ func CheckVector(dir, name string) (string, error) {
 		return "", fmt.Errorf("unknown expectation kind '%s'", expect.Kind)
 	}
 
+	if expect.Sink != nil {
+		var frame bytes.Buffer
+		// Frame only after BOTH the body and selected entry have succeeded.
+		if loaded && ran && expect.Kind != "entries" {
+			if err := lmcode.WriteResultFrame(&frame, stub.Sink); err != nil {
+				return "", err
+			}
+		}
+		if stub.Sink.JSON() != expect.Sink.JSON || frame.String() != expect.Sink.Frame {
+			return "", fmt.Errorf("%s: sink/frame mismatch: json=%q frame=%q", name, stub.Sink.JSON(), frame.String())
+		}
+	}
 	if ok {
 		return expect.Kind, nil
 	}
