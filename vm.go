@@ -142,8 +142,14 @@ func intFromFloat(x float64) int64 {
 	return int64(x)
 }
 
-func validateDryResult(value Value, declared string) error {
+func validateDryResult(reg *Registry, value Value, declared string) error {
 	valid := false
+	if isEnum, ok := reg.validDryEnum(value, declared); isEnum {
+		if !ok {
+			return NewHostError(fmt.Sprintf("dry callback for %s returned %s, not a %s constant", declared, value.KindName(), declared))
+		}
+		return nil
+	}
 	switch declared {
 	case "void":
 		valid = value.Kind == KindVoid
@@ -345,7 +351,7 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 					} else {
 						res, err = imp.fn.DryFn(args)
 						if err == nil {
-							err = validateDryResult(res, imp.fn.Sig.Returns)
+							err = validateDryResult(reg, res, imp.fn.Sig.Returns)
 						}
 					}
 				} else {
@@ -406,7 +412,7 @@ func (p *Program) execute(ctx *Context, reg *Registry, args []Value, capture boo
 				if ctx.Dry() {
 					res, err = imp.method.DryFn(self.Obj, args)
 					if err == nil {
-						err = validateDryResult(res, imp.method.Sig.Returns)
+						err = validateDryResult(reg, res, imp.method.Sig.Returns)
 					}
 				} else {
 					res, err = imp.method.Fn(self.Obj, args)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -98,6 +99,8 @@ type Registry struct {
 	functions           map[string]*FunctionEntry // canonical signature -> entry
 	methods             map[string]*MethodEntry   // canonical signature -> entry
 	contexts            map[string]string         // name -> schema type name
+	enums               map[string]map[string]int // enum name -> constant -> declaration index
+	enumFirst           map[string]string         // enum name -> first constant
 	builtinFunctions    map[string]bool
 	builtinMethods      map[string]bool
 	stdSignatures       map[string]bool
@@ -364,6 +367,10 @@ func (r *Registry) dryDummy(declared string) (Value, error) {
 	case "FloatMap":
 		return r.dryCollections.object(declared, &FloatMap{data: newOrderedMap[float64]()})
 	default:
+		if first, ok := r.enumFirst[declared]; ok {
+			// Enum results travel as constant-name strings; the dummy is the first constant.
+			return String(first), nil
+		}
 		return dryNullValue(declared), nil
 	}
 }
@@ -544,4 +551,57 @@ func (r *Registry) DeclaredFor(canonical string) string {
 	}
 	sort.Strings(have)
 	return strings.Join(have, ", ")
+}
+
+var enumIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// Enum declares a schema enum so dry results can be checked. Enum values
+// cross the host boundary as their constant-name strings (spec/schema.md
+// "enums"), so a dry callback for an enum-typed return returns String(name);
+// without this declaration the SDK cannot tell an enum from an object type.
+// Declaring an enum also makes the no-slot dry dummy the first constant.
+func (r *Registry) Enum(name string, values []string) error {
+	if !enumIdentifier.MatchString(name) {
+		return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum name %q is not an identifier", name))
+	}
+	switch name {
+	case "void", "self", "null", "bool", "int", "integer", "int64", "float", "double", "number", "string":
+		return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum name %q redefines a primitive", name))
+	}
+	if len(values) == 0 {
+		return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum %s has no constants", name))
+	}
+	if r.enums == nil {
+		r.enums = map[string]map[string]int{}
+		r.enumFirst = map[string]string{}
+	}
+	if _, exists := r.enums[name]; exists {
+		return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum %s is already declared", name))
+	}
+	set := make(map[string]int, len(values))
+	for i, v := range values {
+		if !enumIdentifier.MatchString(v) {
+			return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum %s constant %q is not an identifier", name, v))
+		}
+		if _, dup := set[v]; dup {
+			return NewError(LOAD_BAD_SCHEMA, fmt.Sprintf("enum %s repeats constant %s", name, v))
+		}
+		set[v] = i
+	}
+	r.enums[name] = set
+	r.enumFirst[name] = values[0]
+	return nil
+}
+
+// validDryEnum reports whether value is a constant of the declared enum.
+func (r *Registry) validDryEnum(value Value, declared string) (isEnum, ok bool) {
+	if r == nil {
+		return false, false
+	}
+	set, isEnum := r.enums[declared]
+	if !isEnum {
+		return false, false
+	}
+	_, member := set[value.Str]
+	return true, value.Kind == KindStr && member
 }
