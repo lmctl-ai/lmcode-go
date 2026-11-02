@@ -184,7 +184,7 @@ func TestCollectionsListsAndMap(t *testing.T) {
 	}
 }
 
-func TestCollectionsErrorsAndArenaLimit(t *testing.T) {
+func TestCollectionsErrorsAndFormerArenaLimit(t *testing.T) {
 	r := lmcode.NewRegistryWithoutStd()
 	arena := stdlib.NewCollections()
 	if err := stdlib.RegisterCollections(r, arena); err != nil {
@@ -199,15 +199,18 @@ func TestCollectionsErrorsAndArenaLimit(t *testing.T) {
 	if err == nil || err.Error() != "str_split: separator must not be empty" {
 		t.Fatalf("split error = %v", err)
 	}
-	for i := 0; i < 65535; i++ {
-		collectionFn(t, r, "fn int_list() -> IntList")
+	// Retain all objects so this exercises live allocations, not a loop whose
+	// results immediately become unreachable. The old fixed quota was 65536.
+	objects := make([]any, 1, 65537)
+	objects[0] = list
+	for i := 0; i < 65536; i++ {
+		objects = append(objects, collectionFn(t, r, "fn int_list() -> IntList").Obj)
 	}
-	if arena.Size() != 65536 {
-		t.Fatalf("arena size = %d, want 65536", arena.Size())
+	if arena.Size() != 65537 || len(objects) != 65537 {
+		t.Fatalf("arena size = %d with %d retained handles, want 65537", arena.Size(), len(objects))
 	}
-	_, err = collectionFnErr(t, r, "fn int_list() -> IntList")
-	if err == nil || err.Error() != "IntList object limit exceeded (65536)" {
-		t.Fatalf("limit error = %v", err)
+	if objects[len(objects)-1] == nil {
+		t.Fatal("last collection handle was not retained")
 	}
 	arena.Reset()
 	if arena.Size() != 0 {

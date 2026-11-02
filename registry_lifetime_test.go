@@ -2,7 +2,7 @@ package lmcode
 
 import "testing"
 
-func TestDefaultCollectionsResetAndRejectNestedRuns(t *testing.T) {
+func TestDefaultCollectionsResetAndAcceptLargeArenas(t *testing.T) {
 	r := NewRegistry()
 	if err := r.beginRun(); err != nil {
 		t.Fatal(err)
@@ -14,10 +14,17 @@ func TestDefaultCollectionsResetAndRejectNestedRuns(t *testing.T) {
 	if constructor == nil {
 		t.Fatal("missing default collection constructor")
 	}
-	for i := 0; i < collectionObjectLimit; i++ {
-		if _, err := constructor.Fn(nil); err != nil {
+	const formerObjectLimit = 65536
+	handles := make([]Value, formerObjectLimit+1)
+	for i := range handles {
+		value, err := constructor.Fn(nil)
+		if err != nil {
 			t.Fatalf("allocation %d: %v", i, err)
 		}
+		handles[i] = value
+	}
+	if r.stdCollections.Size() != len(handles) {
+		t.Fatalf("live arena size = %d, want %d", r.stdCollections.Size(), len(handles))
 	}
 	r.endRun()
 	if r.stdCollections.Size() != 0 {

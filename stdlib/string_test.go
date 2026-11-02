@@ -74,8 +74,8 @@ func TestCatalogByteSemanticsAndEdges(t *testing.T) {
 		s string
 		n int64
 	}{{"x", -1}, {"", -1}, {"x", -1 << 63}} {
-		if _, err := stdlib.StrRepeat(tc.s, tc.n); err == nil || err.Error() != "str_repeat: count must be nonnegative and result at most 67108864 bytes" {
-			t.Fatalf("repeat(%q,%d) did not return exact cap error", tc.s, tc.n)
+		if _, err := stdlib.StrRepeat(tc.s, tc.n); err == nil || err.Error() != "str_repeat: count must be nonnegative" {
+			t.Fatalf("repeat(%q,%d) did not return exact negative-count error", tc.s, tc.n)
 		}
 	}
 	if got, err := stdlib.StrRepeat("", 1<<63-1); err != nil || got != "" {
@@ -144,30 +144,44 @@ func TestCatalogByteSemanticsAndEdges(t *testing.T) {
 			t.Errorf("match(%q,%q) = %v,%v", tc.text, tc.pattern, got, err)
 		}
 	}
-	if _, err := stdlib.StrReplace(strings.Repeat("x", 65), "x", strings.Repeat("y", 1024*1024)); err == nil || err.Error() != "str_replace: result must be at most 67108864 bytes" {
-		t.Fatal("replace cap not enforced")
-	}
-	megabyte := strings.Repeat("x", 1024*1024)
-	if got, err := stdlib.StrReplace(strings.Repeat("x", 64), "x", megabyte); err != nil || len(got) != 64*1024*1024 {
-		t.Fatalf("exact replacement cap = %d, %v", len(got), err)
-	}
 	if got, err := stdlib.StrReplace("aaaaa", "aa", "b"); err != nil || got != "bba" {
 		t.Fatalf("nonoverlap replace = %q, %v", got, err)
 	}
 	if got, err := stdlib.StrReplace("aaa", "a", ""); err != nil || got != "" {
 		t.Fatalf("deleting replace = %q, %v", got, err)
 	}
-	oversized := strings.Repeat("x", 64*1024*1024+1)
-	for _, tc := range []struct{ from, to string }{{"z", "y"}, {"", "y"}} {
-		if _, err := stdlib.StrReplace(oversized, tc.from, tc.to); err == nil || err.Error() != "str_replace: result must be at most 67108864 bytes" {
-			t.Fatalf("oversized replace(%q) not rejected", tc.from)
-		}
+}
+
+func TestStrRepeatAcceptsResultsOverFormerCap(t *testing.T) {
+	const size = 64*1024*1024 + 1
+	got, err := stdlib.StrRepeat("x", size)
+	if err != nil || len(got) != size || got[0] != 'x' || got[len(got)-1] != 'x' {
+		t.Fatalf("repeat over former cap: len=%d err=%v", len(got), err)
 	}
-	malformed := strings.Repeat("[", 20000)
-	for i := 0; i < 2; i++ {
-		if _, err := stdlib.StrMatch(malformed, malformed); err == nil || err.Error() != "str_match: pattern exceeds the 2^27 work limit" {
-			t.Fatal("glob work cap not enforced")
-		}
+}
+
+func TestStrRepeatRejectsPlatformSizeOverflow(t *testing.T) {
+	if _, err := stdlib.StrRepeat("xx", math.MaxInt64); err == nil || err.Error() != "str_repeat: result exceeds platform string size" {
+		t.Fatalf("repeat platform-size overflow error = %v", err)
+	}
+}
+
+func TestStrReplaceAcceptsResultsOverFormerCap(t *testing.T) {
+	const size = 64*1024*1024 + 1
+	to := strings.Repeat("y", size)
+	got, err := stdlib.StrReplace("x", "x", to)
+	if err != nil || len(got) != size || got[0] != 'y' || got[len(got)-1] != 'y' {
+		t.Fatalf("replace over former cap: len=%d err=%v", len(got), err)
+	}
+}
+
+func TestStrMatchAcceptsWorkOverFormerCap(t *testing.T) {
+	// Every unterminated class scans the remaining pattern and then treats '[' as
+	// a literal. 16,384 such bytes make this input do more than 2^27 matcher steps.
+	input := strings.Repeat("[", 16_384)
+	got, err := stdlib.StrMatch(input, input)
+	if err != nil || !got {
+		t.Fatalf("match over former work cap: got=%v err=%v", got, err)
 	}
 }
 

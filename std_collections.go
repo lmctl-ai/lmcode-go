@@ -5,10 +5,8 @@ import (
 	"strings"
 )
 
-const collectionObjectLimit = 65536
-
-// Collections owns the object budget for one registry lifetime. Reset permits
-// a host to reuse the registry for a new run after all old handles expire.
+// Collections tracks allocations for one registry lifetime. Reset permits a
+// host to reuse the registry for a new run after all old handles expire.
 type Collections struct{ objects int }
 
 // NewCollections creates an empty reusable collection arena.
@@ -21,8 +19,9 @@ func (a *Collections) Reset() { a.objects = 0 }
 func (a *Collections) Size() int { return a.objects }
 
 func (a *Collections) object(typeName string, value any) (Value, error) {
-	if a.objects >= collectionObjectLimit {
-		return None(), NewHostError(typeName + " object limit exceeded (65536)")
+	maxInt := int(^uint(0) >> 1)
+	if a.objects >= maxInt {
+		return None(), NewHostError(typeName + " object count exceeds platform int range")
 	}
 	a.objects++
 	return Object(typeName, value), nil
@@ -123,7 +122,7 @@ func collectionIndex(typeName, method string, index int64, length int) (int, err
 func formatInt(v int64) string { return strconv.FormatInt(v, 10) }
 
 // RegisterCollections registers the byte-oriented list and map catalog.
-// Each registration owns a 65536-object arena captured by its callbacks.
+// Each registration owns an arena captured by its callbacks.
 func RegisterCollections(r *Registry, arenas ...*Collections) error {
 	if len(arenas) > 0 && arenas[0] != nil && r.stdCollections == nil {
 		r.explicitCollections = true

@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-const maxBytes = 64 * 1024 * 1024
-
 // StrLen returns the byte length, including NUL and invalid UTF-8 bytes.
 func StrLen(s string) int64 { return int64(len(s)) }
 
@@ -110,41 +108,50 @@ func StrTrim(s string) string {
 	return s[a:b]
 }
 
-// StrRepeat repeats bytes, rejecting negative counts and results over 64 MiB before allocation.
+// StrRepeat repeats bytes. Negative counts and results beyond the platform's
+// maximum string length are rejected before allocation.
 func StrRepeat(s string, count int64) (string, error) {
 	if len(s) == 0 && count >= 0 {
 		return "", nil
 	}
-	if count < 0 || (len(s) > 0 && uint64(count) > uint64(maxBytes/len(s))) {
-		return "", NewHostError("str_repeat: count must be nonnegative and result at most 67108864 bytes")
+	if count < 0 {
+		return "", NewHostError("str_repeat: count must be nonnegative")
+	}
+	maxInt := uint64(^uint(0) >> 1)
+	if len(s) > 0 && uint64(count) > maxInt/uint64(len(s)) {
+		return "", NewHostError("str_repeat: result exceeds platform string size")
 	}
 	return strings.Repeat(s, int(count)), nil
 }
 
-// StrReplace replaces non-overlapping matches after preflighting a 64 MiB result cap.
-// An empty search is a no-op; even no-op results must fit the cap.
+// StrReplace replaces non-overlapping matches after checking that the result
+// length is representable as a platform string. An empty search is a no-op.
 func StrReplace(s, from, to string) (string, error) {
 	if from == "" {
-		if len(s) > maxBytes {
-			return "", NewHostError("str_replace: result must be at most 67108864 bytes")
-		}
 		return s, nil
 	}
+	maxInt := int(^uint(0) >> 1)
 	size, at := 0, 0
+	addSize := func(n int) bool {
+		if n < 0 || n > maxInt-size {
+			return false
+		}
+		size += n
+		return true
+	}
 	for {
 		i := strings.Index(s[at:], from)
 		if i < 0 {
 			break
 		}
 		p := at + i
-		if p-at > maxBytes-size || len(to) > maxBytes-size-(p-at) {
-			return "", NewHostError("str_replace: result must be at most 67108864 bytes")
+		if !addSize(p-at) || !addSize(len(to)) {
+			return "", NewHostError("str_replace: result exceeds platform string size")
 		}
-		size += p - at + len(to)
 		at = p + len(from)
 	}
-	if len(s)-at > maxBytes-size {
-		return "", NewHostError("str_replace: result must be at most 67108864 bytes")
+	if !addSize(len(s) - at) {
+		return "", NewHostError("str_replace: result exceeds platform string size")
 	}
 	return strings.ReplaceAll(s, from, to), nil
 }
@@ -237,23 +244,14 @@ func parseFloat(s string) (float64, bool) {
 	return v, true
 }
 
-type globWork struct{ steps uint64 }
-
-func (w *globWork) step() error {
-	if w.steps == 1<<27 {
-		return NewHostError("str_match: pattern exceeds the 2^27 work limit")
-	}
-	w.steps++
-	return nil
-}
-func globToken(p string, i int, c byte, next *int, w *globWork) (bool, error) {
+func globToken(p string, i int, c byte, next *int) bool {
 	if p[i] == '\\' && i+1 < len(p) {
 		*next = i + 2
-		return p[i+1] == c, nil
+		return p[i+1] == c
 	}
 	if p[i] == '?' {
 		*next = i + 1
-		return true, nil
+		return true
 	}
 	if p[i] == '[' {
 		q, neg := i+1, false
@@ -263,9 +261,6 @@ func globToken(p string, i int, c byte, next *int, w *globWork) (bool, error) {
 		}
 		first, hit := q, false
 		for q < len(p) && (p[q] != ']' || q == first) {
-			if e := w.step(); e != nil {
-				return false, e
-			}
 			read := func() byte {
 				if p[q] == '\\' && q+1 < len(p) {
 					q++
@@ -287,23 +282,18 @@ func globToken(p string, i int, c byte, next *int, w *globWork) (bool, error) {
 		}
 		if q < len(p) {
 			*next = q + 1
-			return hit != neg, nil
+			return hit != neg
 		}
 	}
 	*next = i + 1
-	return p[i] == c, nil
+	return p[i] == c
 }
 
 // StrMatch matches a whole byte string against *, ?, classes/ranges, [!class], and backslash escapes.
-// It uses constant auxiliary memory and a 2^27 work cap, charged for each matcher iteration,
-// class entry scanned and trailing star skipped. Unterminated classes and trailing backslashes are literal.
+// It uses constant auxiliary memory. Unterminated classes and trailing backslashes are literal.
 func StrMatch(text, pattern string) (bool, error) {
-	work := globWork{}
 	t, p, star, starT := 0, 0, -1, 0
 	for t < len(text) {
-		if err := work.step(); err != nil {
-			return false, err
-		}
 		if p < len(pattern) && pattern[p] == '*' {
 			star, starT = p, t
 			p++
@@ -311,11 +301,7 @@ func StrMatch(text, pattern string) (bool, error) {
 		}
 		if p < len(pattern) {
 			var next int
-			matched, err := globToken(pattern, p, text[t], &next, &work)
-			if err != nil {
-				return false, err
-			}
-			if matched {
+			if globToken(pattern, p, text[t], &next) {
 				p = next
 				t++
 				continue
@@ -329,9 +315,6 @@ func StrMatch(text, pattern string) (bool, error) {
 		t = starT
 	}
 	for p < len(pattern) && pattern[p] == '*' {
-		if err := work.step(); err != nil {
-			return false, err
-		}
 		p++
 	}
 	return p == len(pattern), nil
