@@ -175,6 +175,16 @@ func TestStrReplaceAcceptsResultsOverFormerCap(t *testing.T) {
 	}
 }
 
+func TestStrReplaceAcceptsLargeNoopInput(t *testing.T) {
+	input := strings.Repeat("x", 64*1024*1024+1)
+	for _, from := range []string{"", "z"} {
+		got, err := stdlib.StrReplace(input, from, "y")
+		if err != nil || got != input {
+			t.Fatalf("no-op replace from %q: len=%d err=%v", from, len(got), err)
+		}
+	}
+}
+
 func TestStrMatchAcceptsWorkOverFormerCap(t *testing.T) {
 	// Every unterminated class scans the remaining pattern and then treats '[' as
 	// a literal. 16,384 such bytes make this input do more than 2^27 matcher steps.
