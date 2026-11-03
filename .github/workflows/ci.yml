@@ -52,7 +52,7 @@ jobs:
             "$LMSCRIPT_BIN" --version
           else
             export PATH="$RUNNER_TEMP/lmcode-lmctl/node_modules/.bin:$PATH"
-            echo "LMSCRIPT_BIN=lmscript" >> "$GITHUB_ENV"
+            echo "LMSCRIPT_BIN=$RUNNER_TEMP/lmcode-lmctl/node_modules/.bin/lmscript" >> "$GITHUB_ENV"
             lmscript --version
           fi
       - name: Build and test
