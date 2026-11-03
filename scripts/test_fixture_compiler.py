@@ -39,6 +39,8 @@ class DirectFixtureLaunch(unittest.TestCase):
             (root/'bin').mkdir()
             checker = root/'scripts/check-example-fixtures.py'
             shutil.copyfile(ROOT/'scripts/check-example-fixtures.py', checker)
+            for rel in ('stdlib/testdata/strlen.dslb', 'testdata/rule-methods/program.dslb'):
+                pinned = root/rel; pinned.parent.mkdir(parents=True, exist_ok=True); pinned.write_bytes(b'DSLB\0\6')
             calls = []
             def run(argv, **kwargs):
                 calls.append(argv)
@@ -49,6 +51,6 @@ class DirectFixtureLaunch(unittest.TestCase):
                 return subprocess.CompletedProcess(argv, 0)
             with patch('subprocess.run', side_effect=run):
                 runpy.run_path(str(checker), run_name='__main__')
-            self.assertEqual(sum(argv[0] == 'node' for argv in calls), 2)
+            self.assertEqual(sum(argv[0] == 'node' for argv in calls), 4)
 
 if __name__=='__main__':unittest.main()
