@@ -15,9 +15,9 @@ func TestAnnotatedSAMRuleRunsAsInlinedV6Code(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bytecode, err := os.ReadFile("testdata/rule-methods/program.dslb")
+	bytecode, err := os.ReadFile("bin/rule-methods-source.dslb")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("compile-example-fixtures must generate the migrated rule-method source: %v", err)
 	}
 	if !bytes.HasPrefix(bytecode, []byte("DSLB\x00\x06")) {
 		t.Fatal("expected bytecode v6")

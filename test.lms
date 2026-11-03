@@ -8,6 +8,7 @@ fn step(command) {
 }
 step(["bash", "scripts/sync-std.sh", "--verify"]);
 step(["bash", "scripts/sync-vectors.sh", "--verify"]);
+step(["python3", "scripts/check-example-fixtures.py"]);
 step(["go", "test", "./..."]);
 step(["python3", "scripts/gen-std-docs.py", "--check"]);
 step(["python3", "scripts/test-return-controls.py"]);
@@ -23,7 +24,6 @@ step(["python3", "scripts/test-invocation-vectors.py"]);
 step(["python3", "scripts/test-return-vectors.py", path_join(Directory,"bin/return-conformance" + ext)]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/vectors"]);
 step([path_join(Directory, "bin/conformance" + ext), "conformance/stdlib-vectors"]);
-step(["python3", "scripts/check-example-fixtures.py"]);
 step([path_join(Directory, "bin/rule-entries" + ext), "bin/rule-entries.dslb"]);
 result = step([path_join(Directory, "bin/greeter" + ext), "bin/greeter.dslb", "examples/greeter/schema.json"]);
 assert(trim(result.stdout) == "Hello from Go DSL at 2026-10-24", "greeter output differs");
