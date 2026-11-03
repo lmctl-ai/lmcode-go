@@ -5,6 +5,9 @@ import os
 import subprocess
 import tempfile
 import unittest
+import runpy
+import shutil
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,5 +30,25 @@ class PublishedCompiler(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(result.stderr,b'')
             self.assertEqual(output.read_bytes(),b'DSLB\0\6')
+
+class DirectFixtureLaunch(unittest.TestCase):
+    def test_python_fixture_check_never_selects_system_bash(self):
+        with tempfile.TemporaryDirectory(prefix='fixture argv ') as directory:
+            root = Path(directory)
+            (root/'scripts').mkdir()
+            (root/'bin').mkdir()
+            checker = root/'scripts/check-example-fixtures.py'
+            shutil.copyfile(ROOT/'scripts/check-example-fixtures.py', checker)
+            calls = []
+            def run(argv, **kwargs):
+                calls.append(argv)
+                if argv[0] == 'bash':
+                    raise AssertionError('Python selected system bash (WSL on Windows)')
+                if argv[0] == 'node':
+                    (root/argv[-1]).write_bytes(b'DSLB\0\6')
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run):
+                runpy.run_path(str(checker), run_name='__main__')
+            self.assertEqual(sum(argv[0] == 'node' for argv in calls), 2)
 
 if __name__=='__main__':unittest.main()
