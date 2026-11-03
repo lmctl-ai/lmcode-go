@@ -2,9 +2,11 @@
 """Build both examples with the selected compiler and inspect the actual wire header."""
 from pathlib import Path
 import subprocess
+import sys
 
 root = Path(__file__).resolve().parents[1]
 (root/'bin').mkdir(exist_ok=True)
+subprocess.run([sys.executable, str(root/'scripts/test_fixture_compiler.py')], check=True)
 subprocess.run(['bash', 'scripts/compile-examples.sh'], cwd=root, check=True)
 for name in ('rule-entries', 'greeter'):
     data = (root/'bin'/(name+'.dslb')).read_bytes()
