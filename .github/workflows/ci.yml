@@ -7,7 +7,7 @@ on:
       compiler_version:
         description: "Published @lmctl-ai/lmctl version"
         required: false
-        default: "0.2.450"
+        default: "0.2.456"
 permissions:
   contents: read
 concurrency:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 env:
   SAMPLE_VERSION: 0.6.${{ github.run_number }}
-  LMCODE_COMPILER_VERSION: ${{ inputs.compiler_version || vars.LMCODE_COMPILER_VERSION || '0.2.450' }}
+  LMCODE_COMPILER_VERSION: ${{ inputs.compiler_version || vars.LMCODE_COMPILER_VERSION || '0.2.456' }}
 jobs:
   build:
     strategy:
@@ -57,7 +57,7 @@ jobs:
           fi
       - name: Build and test
         run: |
-          lmscript --no-preflight test.lms
+          lmscript test.lms
           mkdir -p dist
           for binary in greeter conformance rule-entries; do
             cp "bin/$binary${{ matrix.ext }}" "dist/$binary-${{ matrix.label }}${{ matrix.ext }}"

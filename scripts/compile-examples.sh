@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Maintainer fixture generation uses compiler-owned bytes, not a public export API.
 set -euo pipefail
-"${LMSCRIPT_BIN:-lmscript}" --no-preflight examples/rule-entries/rules.lms bin/rule-entries.dslb
-"${LMSCRIPT_BIN:-lmscript}" --no-preflight examples/greeter/build.lms bin/greeter.dslb
+node scripts/compile-fixture.mjs examples/rule-entries/rules.lms bin/rule-entries.dslb
+node scripts/compile-fixture.mjs examples/greeter/build.lms bin/greeter.dslb
