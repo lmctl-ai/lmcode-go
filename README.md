@@ -249,6 +249,10 @@ success keys or after failure location/part fields; real envelopes omit it.
 Dry nulls serialize as JSON null but preserve internal provenance, cannot be
 passed to callbacks, and still obey each program's result contract.
 
+## REST server over stdio (opt-in)
+
+The `rest` package is an opt-in std module (`lmcode_std_rest_v1`, 18 signatures; the default registry is unchanged) that serves HTTP/1.1 requests from an input stream to an output stream through annotated `RestHandler` entries. See [docs/rest.md](docs/rest.md).
+
 ## Historical literal names
 
 The documentation calls the language lmcode. `--lmcode`, `--lmcode-schema` and `--lmcode-signatures` are current host flag literals; `DSLB` is the bytecode magic and `DSLB v6` is the current format name; `.dslb` is the current bytecode filename extension. Other code-formatted API names, paths, manifest names and diagnostic text retain their current literal spellings.

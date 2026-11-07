@@ -8,15 +8,17 @@ fn step(command) {
 }
 step(["bash", "scripts/sync-std.sh", "--verify"]);
 step(["bash", "scripts/sync-vectors.sh", "--verify"]);
+step(["bash", "scripts/sync-rest.sh", "--verify"]);
 step(["python3", "scripts/check-example-fixtures.py"]);
 step(["go", "test", "./..."]);
+step(["go", "test", "-count=1", "-v", "-run", "TestSuiteReplay|TestServeHostExitCodes", "./rest"]);
 step(["python3", "scripts/gen-std-docs.py", "--check"]);
 step(["python3", "scripts/test-return-controls.py"]);
 step(["python3", "scripts/test-invocation-controls.py"]);
 step(["python3", "scripts/test-dry-controls.py"]);
 mkdir("bin");
 ext = ""; if (env("RUNNER_OS") == "Windows") { ext = ".exe"; }
-for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}, {name:"return-conformance", source:"./cmd/return-conformance"}, {name:"invocation-conformance", source:"./cmd/invocation-conformance"}]) {
+for (p in [{name:"greeter", source:"./examples/greeter"}, {name:"rule-entries", source:"./examples/rule-entries"}, {name:"conformance", source:"./cmd/conformance"}, {name:"return-conformance", source:"./cmd/return-conformance"}, {name:"invocation-conformance", source:"./cmd/invocation-conformance"}, {name:"rest-serve", source:"./cmd/rest-serve"}]) {
   step(["go", "build", "-trimpath", "-o", "bin/" + p.name + ext, p.source]);
 }
 set_env("LMCODE_INVOCATION_HARNESS", path_join(Directory,"bin/invocation-conformance" + ext));

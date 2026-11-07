@@ -9,3 +9,6 @@ std/*.json text eol=lf
 # Terminal return fixtures are literal LF protocol bytes.
 conformance/return-vectors/** text eol=lf
 conformance/return-vectors/*.dslb binary
+conformance/rest-suite/* text eol=lf
+conformance/rest-suite/*.dslb binary
+rest-suite.lock text eol=lf
