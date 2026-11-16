@@ -108,11 +108,15 @@ type Registry struct {
 	stdCollections      *Collections
 	dryCollections      *Collections
 	explicitCollections bool
+	restRegistered      bool
+	beforeRestRun       func(*Program, *Context, *Registry) (bool, error)
+	afterRestRun        func(*Program, *Context, *Registry) error
 	runState            *registryRunState
 }
 
 type registryRunState struct {
 	mu         sync.Mutex
+	active     bool
 	resultSink *ResultSink
 }
 
@@ -290,6 +294,9 @@ func RegisterStd(r *Registry) error {
 	if err := registerResults(r); err != nil {
 		return err
 	}
+	if err := registerStdRest(r); err != nil {
+		return err
+	}
 	for k := range r.functions {
 		if !beforeF[k] {
 			r.builtinFunctions[k] = true
@@ -316,6 +323,7 @@ func (r *Registry) beginRun() error {
 	if !r.runState.mu.TryLock() {
 		return NewHostError("registry run already active")
 	}
+	r.runState.active = true
 	if r.stdCollections != nil {
 		r.stdCollections.Reset()
 	}
@@ -335,9 +343,92 @@ func (r *Registry) endRun() {
 	if r.dryCollections != nil {
 		r.dryCollections.Reset()
 	}
-	if r.runState != nil {
+	if r.runState != nil && r.runState.active {
+		r.runState.active = false
 		r.runState.mu.Unlock()
 	}
+}
+
+// SuspendStdRun temporarily unlocks the registry run mutex and swaps out the collection arena
+// so an inner entry call (such as rest_cli or a REST handler) can run isolated.
+func (r *Registry) SuspendStdRun() (*Collections, bool) {
+	if r == nil || !r.stdInstalled {
+		return nil, false
+	}
+	wasActive := r.runState != nil && r.runState.active
+	if wasActive {
+		r.runState.active = false
+		r.runState.mu.Unlock()
+	}
+	saved := r.stdCollections
+	if r.stdCollections != nil {
+		r.stdCollections = NewCollections()
+	}
+	return saved, wasActive
+}
+
+// ResumeStdRun restores the collection arena and run lock after an isolated inner entry call.
+func (r *Registry) ResumeStdRun(saved *Collections, wasActive bool) {
+	if r == nil || !r.stdInstalled {
+		return
+	}
+	r.stdCollections = saved
+	if wasActive && r.runState != nil {
+		r.runState.mu.Lock()
+		r.runState.active = true
+	}
+}
+
+// SetRestHooks installs lifecycle hooks invoked around Program.Run.
+func (r *Registry) SetRestHooks(before func(*Program, *Context, *Registry) (bool, error), after func(*Program, *Context, *Registry) error) {
+	r.beforeRestRun = before
+	r.afterRestRun = after
+}
+
+// MarkRestRegistered records that rest.Register has been called on this registry.
+func (r *Registry) MarkRestRegistered() error {
+	if r.restRegistered {
+		return NewError(LOAD_UNBOUND, "registry: function 'rest_route(string, string, string) -> void' is registered twice")
+	}
+	r.restRegistered = true
+	return nil
+}
+
+// OverrideStdFunction overrides a built-in function callback when std is installed, or registers a host function when std is disabled.
+func (r *Registry) OverrideStdFunction(name string, params []string, returns string, fn Function, drySlots ...DrySlot[Function]) error {
+	if !r.stdInstalled {
+		return r.Function(name, params, returns, fn, drySlots...)
+	}
+	sig := Signature{Params: append([]string(nil), params...), Returns: returns}
+	canonical := "fn " + name + sig.Text()
+	var dryFn Function
+	if len(drySlots) == 1 && drySlots[0].supplied {
+		dryFn = drySlots[0].callback
+	}
+	r.functions[canonical] = &FunctionEntry{Name: name, Sig: sig, Fn: fn, DryFn: dryFn}
+	r.builtinFunctions[canonical], r.stdSignatures[canonical] = true, true
+	return nil
+}
+
+// OverrideStdMethod overrides a built-in method callback when std is installed, or registers a host method when std is disabled.
+func (r *Registry) OverrideStdMethod(typeName, name string, params []string, returns string, fn Method, drySlots ...DrySlot[Method]) error {
+	if !r.stdInstalled {
+		return r.Method(typeName, name, params, returns, fn, drySlots...)
+	}
+	sig := Signature{Params: append([]string(nil), params...), Returns: returns}
+	canonical := "method " + typeName + "." + name + sig.Text()
+	var dryFn Method
+	if len(drySlots) == 1 && drySlots[0].supplied {
+		dryFn = drySlots[0].callback
+	}
+	r.methods[canonical] = &MethodEntry{Type: typeName, Name: name, Sig: sig, Fn: fn, DryFn: dryFn}
+	r.builtinMethods[canonical], r.stdSignatures[canonical] = true, true
+	return nil
+}
+
+// StdCollections returns the registry's standard collections arena.
+func (r *Registry) StdCollections() *Collections {
+	return r.stdCollections
 }
 
 func (r *Registry) dryDummy(declared string) (Value, error) {

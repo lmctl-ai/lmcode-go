@@ -185,8 +185,26 @@ func hasDryNull(values []Value) bool {
 // Load time owns callbacks and run state; the argument is retained for legacy
 // callers and is used only for programs constructed without a bound registry.
 func (p *Program) Run(ctx *Context, reg *Registry, stats ...*RunStats) error {
+	boundReg := p.registry
+	if boundReg == nil {
+		boundReg = reg
+	}
+	restHookActive := false
+	if boundReg != nil && boundReg.beforeRestRun != nil && !ctx.Dry() {
+		active, err := boundReg.beforeRestRun(p, ctx, boundReg)
+		if err != nil {
+			return err
+		}
+		restHookActive = active
+	}
 	_, err := p.execute(ctx, reg, nil, false, stats...)
-	return err
+	if err != nil {
+		return err
+	}
+	if restHookActive && boundReg != nil && boundReg.afterRestRun != nil && !ctx.Dry() {
+		return boundReg.afterRestRun(p, ctx, boundReg)
+	}
+	return nil
 }
 
 // Call invokes one rule without executing the body. Argument kinds are host-owned.

@@ -77,18 +77,13 @@ func declaredSignatures(t *testing.T) []string {
 
 func TestRegistrationAddsExactlyTheEighteenDeclaredSignatures(t *testing.T) {
 	declared := declaredSignatures(t)
-	if len(declared) != 18 {
-		t.Fatalf("host.schema.json declares %d signatures, want 18", len(declared))
+	if len(declared) != 20 {
+		t.Fatalf("host.schema.json declares %d signatures, want 20", len(declared))
 	}
 	plain := lmcode.NewRegistry()
 	before := plain.Signatures()
-	if len(plain.StdSignatures()) != 206 {
-		t.Fatalf("default catalog has %d std signatures, want 206", len(plain.StdSignatures()))
-	}
-	for _, s := range before {
-		if strings.Contains(s, "rest_") || strings.Contains(s, "RestExchange") {
-			t.Fatalf("default registry leaks %s", s)
-		}
+	if len(plain.StdSignatures()) != 226 {
+		t.Fatalf("default catalog has %d std signatures, want 226", len(plain.StdSignatures()))
 	}
 	if _, err := Register(plain, Options{}); err != nil {
 		t.Fatal(err)
@@ -102,8 +97,8 @@ func TestRegistrationAddsExactlyTheEighteenDeclaredSignatures(t *testing.T) {
 	if strings.Join(added, "\n") != strings.Join(declared, "\n") {
 		t.Fatalf("registered:\n%s\ndeclared:\n%s", strings.Join(added, "\n"), strings.Join(declared, "\n"))
 	}
-	if len(plain.Signatures()) != len(before)+18 || len(plain.StdSignatures()) != 206 {
-		t.Fatal("registration must add exactly 18 host signatures and leave the std catalog alone")
+	if len(plain.Signatures()) != len(before) || len(plain.StdSignatures()) != 226 {
+		t.Fatal("registration must preserve the 226 std catalog signatures (including the 20 built-in rest signatures)")
 	}
 	if got := len(lmcode.NewRegistry().Signatures()); got != len(before) {
 		t.Fatalf("a fresh default registry changed: %d vs %d", got, len(before))
@@ -371,6 +366,29 @@ func TestDispatchResponseShaping(t *testing.T) {
 	r = c.Dispatch(Request{Method: "HEAD", Target: "/health"})
 	if r.Status != 200 || r.Body != `{"status":"ok"}` {
 		t.Fatalf("HEAD runs the GET handler; the pump drops the body: %+v", r)
+	}
+}
+
+func TestDispatchStdMethodInterfacesAndCli(t *testing.T) {
+	c := dispatchSuite(t, nil)
+	if r := c.Dispatch(get("/items/42/detail")); r.Status != 200 || r.Body != "item:42" {
+		t.Fatalf("RestGet auto-route (:id): %+v", r)
+	}
+	if r := c.Dispatch(get("/annotated/get/alice")); r.Status != 200 || r.Body != "annotated-get:alice" {
+		t.Fatalf("RestGet auto-route (:name): %+v", r)
+	}
+	if r := c.Dispatch(Request{Method: "POST", Target: "/annotated/post", Body: "world"}); r.Status != 201 || r.Body != "annotated-post:world" {
+		t.Fatalf("RestPost auto-route: %+v", r)
+	}
+	if r := c.Dispatch(get("/annotated/handler/box")); r.Status != 200 || r.Body != "annotated-handler:GET:box" {
+		t.Fatalf("RestHandler inline verb+path: %+v", r)
+	}
+	if r := c.Dispatch(Request{Method: "POST", Target: "/cli-run", Body: "--format=json scan -- target1"}); r.Status != 200 || r.Body != "cli:scan:json:target1" {
+		t.Fatalf("rest_cli via /cli-run: %+v", r)
+	}
+	out, err := c.cli([]string{"--format", "yaml", "scan", "--", "target2"})
+	if err != nil || out != "cli:scan:yaml:target2" {
+		t.Fatalf("direct c.cli: %q, err=%v", out, err)
 	}
 }
 

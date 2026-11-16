@@ -118,6 +118,11 @@ func parseRoute(method, path string) (*route, error) {
 		if text == "" && !last {
 			return nil, invalid("empty segment ('//')")
 		}
+		if len(text) >= 1 && text[0] == ':' {
+			text = "{" + text[1:] + "}"
+		} else if len(text) >= 1 && text[0] == '*' {
+			text = "{" + text[1:] + "...}"
+		}
 		if len(text) >= 2 && text[0] == '{' && text[len(text)-1] == '}' {
 			name, rest := text[1:len(text)-1], false
 			if strings.HasSuffix(name, "...") {
