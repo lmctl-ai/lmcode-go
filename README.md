@@ -1,5 +1,7 @@
 # lmcode-go
 
+Documentation: [Quick reference](https://www.lmctl.com/tools/lmcode-go/) | [LLM skill](https://www.lmctl.com/tools/lmcode-go/skill.html) | [Guide](https://www.lmctl.com/tools/lmcode-go/guide.html) | [Reference](https://www.lmctl.com/tools/lmcode-go/reference.html)
+
 The Go runtime for lmscript `_lmcode_` bytecode: loader, verifier, stack VM, and typed host registry in package `lmcode`.
 Go 1.26+, standard library only, zero third-party dependencies (`go.mod` has no `require`). Builds cleanly with `CGO_ENABLED=0` into static binaries.
 
